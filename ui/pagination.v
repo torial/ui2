@@ -247,3 +247,4 @@ pub fn pagination(config PaginationConfig) !Element {
 		accessibility_label: 'Pagination'
 		accessibility_value: 'Page ${state.page} of ${state.pages}'
 	})
+}

@@ -77,7 +77,7 @@ pub fn avatar(config AvatarConfig) !Element {
 	local := component_local(config.frame)
 	child := if config.image_path.len > 0 {
 		image('', config.image_path, local)
-} else {
+	} else {
 		label('', avatar_initials(config.name), local, TextStyle{
 			color: config.theme.foreground
 			size: math.min(config.frame.width, config.frame.height) * 0.4
@@ -90,7 +90,7 @@ pub fn avatar(config AvatarConfig) !Element {
 			bg: config.theme.muted
 			radius: math.min(config.frame.width, config.frame.height) / 2
 		}, [child])
-		accessibility_role: 'image'
+		accessibility_role: 'img'
 		accessibility_label: config.name
 	})
 }
