@@ -1346,7 +1346,7 @@ fn native_create_element(el Element) NativeView {
 				el.scroll_mode)
 		}
 		.label {
-			native_new_label(element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			native_new_label(element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.font_family, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image {
 			native_new_image(element_rect(el.frame), el.image_path, el.rotation)
@@ -1393,7 +1393,7 @@ fn native_update_element(native NativeView, el Element, declared_text_changed bo
 			native_set_scrollbar_mode(native, el.persistent_scrollbars)
 		}
 		.label {
-			native_update_label(native, element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			native_update_label(native, element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.font_family, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image {
 			native_update_image(native, element_rect(el.frame), el.image_path, el.rotation)
@@ -2030,7 +2030,7 @@ fn native_update_image(image_view NativeView, frame NativeRect, path string, rot
 	}
 }
 
-fn native_new_label(frame NativeRect, text string, text_hex u32, size f64, bold bool, italic bool, underline bool, align int, lines int, valign VAlign, boxed bool) NativeView {
+fn native_new_label(frame NativeRect, text string, text_hex u32, size f64, family string, bold bool, italic bool, underline bool, align int, lines int, valign VAlign, boxed bool) NativeView {
 	inner := if boxed {
 		NativeRect{
 			width:  frame.width
@@ -2046,14 +2046,14 @@ fn native_new_label(frame NativeRect, text string, text_hex u32, size f64, bold 
 	}
 	field := macos.msg_id_rect(macos.alloc(label_class), 'initWithFrame:', appkit_rect(inner))
 	if !boxed {
-		native_update_label(field, frame, text, text_hex, size, bold, italic, underline,
-			align, lines, valign, boxed)
+		native_update_label(field, frame, text, text_hex, size, family, bold, italic,
+			underline, align, lines, valign, boxed)
 		return field
 	}
 	container := macos.msg_id_rect(macos.alloc('UI2FlippedView'), 'initWithFrame:', appkit_rect(frame))
 	native_add_subview(container, field)
 	macos.release(field)
-	native_update_label(container, frame, text, text_hex, size, bold, italic, underline,
+	native_update_label(container, frame, text, text_hex, size, family, bold, italic, underline,
 		align, lines, valign, boxed)
 	return container
 }
@@ -2078,7 +2078,7 @@ fn label_text_field(view NativeView) NativeView {
 	return NativeView(macos.msg_id_u64(subviews, 'objectAtIndex:', 0))
 }
 
-fn native_update_label(view NativeView, frame NativeRect, text string, text_hex u32, size f64, bold bool, italic bool, underline bool, align int, lines int, valign VAlign, boxed bool) {
+fn native_update_label(view NativeView, frame NativeRect, text string, text_hex u32, size f64, family string, bold bool, italic bool, underline bool, align int, lines int, valign VAlign, boxed bool) {
 	native_set_frame(view, frame)
 	label_view := if boxed { label_text_field(view) } else { view }
 	macos.msg_void1(label_view, 'setStringValue:', macos.nsstring(text))
@@ -2088,9 +2088,15 @@ fn native_update_label(view NativeView, frame NativeRect, text string, text_hex 
 	macos.msg_void_bool(label_view, 'setBezeled:', false)
 	macos.msg_void_bool(label_view, 'setDrawsBackground:', false)
 	macos.msg_void1(label_view, 'setTextColor:', native_color(text_hex))
-	macos.msg_void1(label_view, 'setFont:', native_font(size, bold, italic))
+	macos.msg_void1(label_view, 'setFont:', native_text_style_font(TextStyle{
+		size:        size
+		font_family: family
+		bold:        bold
+		italic:      italic
+	}))
 	if italic || underline {
-		native_control_set_attributed_title(label_view, text, text_hex, size, bold, italic, underline)
+		native_control_set_attributed_title(label_view, text, text_hex, size, family, bold, italic,
+			underline)
 	}
 	macos.msg_void_i64(label_view, 'setAlignment:', i64(align))
 	native_apply_line_limit(label_view, lines)
@@ -2206,6 +2212,7 @@ struct ShortenedText {
 	width     f64
 	height    f64
 	size      f64
+	family    string
 	bold      bool
 	italic    bool
 	image     string
@@ -2230,7 +2237,7 @@ fn native_hover_text(key string, native NativeView, el Element) string {
 	if cached := st.node_shortened[key] {
 		if cached.text == full_text && cached.width == el.frame.width
 			&& cached.height == el.frame.height && cached.size == el.text_style.size
-			&& cached.bold == el.text_style.bold && cached.italic == el.text_style.italic
+			&& cached.family == el.text_style.font_family && cached.bold == el.text_style.bold && cached.italic == el.text_style.italic
 			&& cached.image == el.image_path {
 			return if cached.shortened { full_text } else { '' }
 		}
@@ -2241,6 +2248,7 @@ fn native_hover_text(key string, native NativeView, el Element) string {
 		width:     el.frame.width
 		height:    el.frame.height
 		size:      el.text_style.size
+		family:    el.text_style.font_family
 		bold:      el.text_style.bold
 		italic:    el.text_style.italic
 		image:     el.image_path
@@ -2329,7 +2337,8 @@ fn native_update_button(button_view NativeView, frame NativeRect, title string, 
 		macos.msg_void_i64(button_view, 'setButtonType:', ns_button_type_momentary_change)
 		macos.msg_void_bool(button_view, 'setBordered:', false)
 		macos.msg_void1(button_view, 'setFont:', native_font(size, bold, italic))
-		native_control_set_attributed_title(button_view, title, text_hex, size, bold, italic, underline)
+		native_button_set_attributed_title(button_view, title, text_hex, size, bold, italic, underline,
+			lines)
 		native_set_box_background(button_view, box)
 		native_set_corner_radius(button_view, box.radius)
 	}

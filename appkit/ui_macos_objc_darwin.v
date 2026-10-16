@@ -250,7 +250,11 @@ fn native_accessibility_role(role string) macos.Id {
 		'button' { macos.nsstring('AXButton') }
 		'text', 'label' { macos.nsstring('AXStaticText') }
 		'text_field' { macos.nsstring('AXTextField') }
-		'image' { macos.nsstring('AXImage') }
+		'image', 'img' { macos.nsstring('AXImage') }
+		// Structural roles have no AppKit counterpart of their own; VoiceOver reads
+		// them as groups, which is how WebKit exposes the matching ARIA roles.
+		'group', 'navigation', 'status', 'alert' { macos.nsstring('AXGroup') }
+		'separator' { macos.nsstring('AXSplitter') }
 		'link' { macos.nsstring('AXLink') }
 		'slider' { macos.nsstring('AXSlider') }
 		'switch' { macos.nsstring('AXCheckBox') }
