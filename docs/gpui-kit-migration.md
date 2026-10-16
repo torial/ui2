@@ -20,7 +20,7 @@ kinds or a Rust dependency. Their child frames are parent-local.
 | Skeleton | `skeleton(SkeletonConfig)` | Static rounded or centered circular placeholder |
 | Kbd | `kbd(KbdConfig)` | Display-only keyboard shortcut hint |
 | Link | `link(LinkConfig)` | Button activation with application-owned navigation |
-| Alert | `alert(AlertConfig)` | Inline title/message and optional dismiss action |
+| Alert | `inline_alert(InlineAlertConfig)` | Inline title/message and optional dismiss action; `alert()` remains the OS message box |
 | Empty | `empty_state(EmptyStateConfig)` | Empty-state text and optional primary action |
 | GroupBox | `group_box(GroupBoxConfig)` | Labeled border and padded content body |
 | DescriptionList | `description_list(DescriptionListConfig)` | Two-column term/value rows |
@@ -71,7 +71,9 @@ if page := ui2.pagination_page_from_action('results', state, event) {
 
 The decoder rejects unrelated IDs, malformed digits, integer overflow,
 leading-zero encodings, disabled state, and invalid destinations. Previous,
-next, and numbered controls all use the same action encoding. Ellipses are
+next, and numbered controls all use the same action encoding. The current page
+is an enabled button marked `current` (a disabled one is dimmed and announced as
+unavailable by native backends); activating it decodes to nothing. Ellipses are
 labels in this version, not clickable page-jump menus.
 
 ## Identity and state
@@ -91,9 +93,16 @@ and collapsible children are positioned relative to their body, not the root.
 Application-supplied child geometry is not automatically resized or clipped
 by these builders beyond the existing backend's behavior.
 
+Button text is centered in its frame on every backend, so give a link a frame
+sized to its text. UI2 has no backend-neutral text measurement, so breadcrumb
+items are sized from an estimate of their label width and packed from the
+left, shrinking evenly when the trail does not fit.
+
 Accessibility roles, labels, and current/expanded state are attached to the
 resulting elements. This is metadata, not a claim of GPUI's AccessKit parity;
 keyboard behavior and native accessibility mapping remain backend-dependent.
+AppKit exposes `group`, `navigation`, `status` and `alert` as `AXGroup`,
+`separator` as `AXSplitter` and `img` as `AXImage`.
 Images use the existing image implementation: initials are chosen only when
 `image_path` is empty, not after a load failure. Image masking also depends on
 the backend. Skeletons do not shimmer; keyboard hints do not register shortcuts;

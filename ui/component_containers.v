@@ -2,21 +2,22 @@ module ui2
 
 import math
 
-pub struct AlertConfig {
+pub struct InlineAlertConfig {
 pub:
 	id             string
 	frame          Rect
 	title          string
 	description    string
 	dismiss_action string
-	enabled        bool = true
+	enabled        bool          = true
 	tone           ComponentTone = .primary
 	size           ComponentSize = .medium
 	theme          ComponentTheme
 }
 
-// alert is an inline message, not an OS dialog or a global toast manager.
-pub fn alert(config AlertConfig) !Element {
+// inline_alert is a message drawn in the layout. It is not the OS dialog that
+// alert() shows, nor a global toast manager.
+pub fn inline_alert(config InlineAlertConfig) !Element {
 	component_validate_frame(config.frame)!
 	if config.dismiss_action.len > 0 {
 		component_validate_id(config.id)!
@@ -24,7 +25,11 @@ pub fn alert(config AlertConfig) !Element {
 	metrics := component_metrics(config.size)
 	accent, _ := config.theme.colors(config.tone)
 	inner := component_inset(component_local(config.frame), metrics.padding)!
-	close_width := if config.dismiss_action.len > 0 { math.min(metrics.height, inner.width) } else { 0.0 }
+	close_width := if config.dismiss_action.len > 0 {
+		math.min(metrics.height, inner.width)
+	} else {
+		0.0
+	}
 	width := inner.width - close_width
 	title_height := if config.title.len > 0 { math.min(metrics.height, inner.height) } else { 0.0 }
 	mut children := []Element{}
@@ -35,29 +40,29 @@ pub fn alert(config AlertConfig) !Element {
 	if config.description.len > 0 {
 		children << label('', config.description, rect(inner.x, inner.y + title_height, width,
 			inner.height - title_height), TextStyle{
-			color: config.theme.muted_foreground
-			size: metrics.font_size
+			color:  config.theme.muted_foreground
+			size:   metrics.font_size
 			valign: .top
-			lines: 0
+			lines:  0
 		})
 	}
 	if config.dismiss_action.len > 0 {
 		children << Element{
 			...button(component_part_id(config.id, 'dismiss'), '×', rect(inner.x + width, inner.y,
-				close_width, math.min(metrics.height, inner.height)), BoxStyle{transparent: true}, TextStyle{
+				close_width, math.min(metrics.height, inner.height)), BoxStyle{ transparent: true }, TextStyle{
 				color: config.theme.foreground
-				size: metrics.font_size
+				size:  metrics.font_size
 				align: .center
 			})
-			action_id: config.dismiss_action
-			enabled: config.enabled
+			action_id:           config.dismiss_action
+			enabled:             config.enabled
 			accessibility_label: 'Dismiss ${config.title}'
 		}
 	}
 	return component_finish(Element{
 		...view(config.id, config.frame, component_box(config.theme.background, accent,
 			metrics.radius), children)
-		accessibility_role: 'alert'
+		accessibility_role:  'alert'
 		accessibility_label: (config.title + ' ' + config.description).trim_space()
 	})
 }
@@ -70,7 +75,7 @@ pub:
 	description string
 	action_text string
 	action_id   string
-	enabled     bool = true
+	enabled     bool          = true
 	size        ComponentSize = .medium
 	theme       ComponentTheme
 }
@@ -82,18 +87,22 @@ pub fn empty_state(config EmptyStateConfig) !Element {
 	}
 	metrics := component_metrics(config.size)
 	inner := component_inset(component_local(config.frame), metrics.padding)!
-	action_height := if config.action_id.len > 0 { math.min(metrics.height, inner.height) } else { 0.0 }
+	action_height := if config.action_id.len > 0 {
+		math.min(metrics.height, inner.height)
+	} else {
+		0.0
+	}
 	title_height := math.min(metrics.height, inner.height - action_height)
 	mut children := [label('', config.title, rect(inner.x, inner.y, inner.width, title_height), TextStyle{
 		color: config.theme.foreground
-		size: metrics.font_size
-		bold: true
+		size:  metrics.font_size
+		bold:  true
 		align: .center
 	})]
 	children << label('', config.description, rect(inner.x, inner.y + title_height, inner.width,
 		inner.height - title_height - action_height), TextStyle{
 		color: config.theme.muted_foreground
-		size: metrics.font_size
+		size:  metrics.font_size
 		align: .center
 		lines: 0
 	})
@@ -101,17 +110,17 @@ pub fn empty_state(config EmptyStateConfig) !Element {
 		children << Element{
 			...button(component_part_id(config.id, 'action'), config.action_text,
 				rect(inner.x, inner.y + inner.height - action_height, inner.width, action_height),
-				BoxStyle{bg: config.theme.primary, radius: metrics.radius}, TextStyle{
-				color: config.theme.primary_foreground
-				size: metrics.font_size
-				align: .center
-			})
-			action_id: config.action_id
-			enabled: config.enabled
+				BoxStyle{ bg: config.theme.primary, radius: metrics.radius }, TextStyle{
+					color: config.theme.primary_foreground
+					size:  metrics.font_size
+					align: .center
+				})
+			action_id:           config.action_id
+			enabled:             config.enabled
 			accessibility_label: config.action_text
 		}
 	}
-	return component_finish(view(config.id, config.frame, BoxStyle{transparent: true}, children))
+	return component_finish(view(config.id, config.frame, BoxStyle{ transparent: true }, children))
 }
 
 pub struct GroupBoxConfig {
@@ -135,11 +144,11 @@ pub fn group_box(config GroupBoxConfig) !Element {
 			config.theme.foreground, metrics.font_size, true)
 	}
 	children << view('', rect(inner.x, inner.y + title_height, inner.width,
-		inner.height - title_height), BoxStyle{transparent: true}, config.children)
+		inner.height - title_height), BoxStyle{ transparent: true }, config.children)
 	return component_finish(Element{
 		...view(config.id, config.frame, component_box(config.theme.background, config.theme.border,
 			metrics.radius), children)
-		accessibility_role: 'group'
+		accessibility_role:  'group'
 		accessibility_label: config.title
 	})
 }
@@ -152,12 +161,12 @@ pub:
 
 pub struct DescriptionListConfig {
 pub:
-	id            string
-	frame         Rect
-	items         []DescriptionItem
-	label_fraction f64 = 0.35
-	size          ComponentSize = .medium
-	theme         ComponentTheme
+	id             string
+	frame          Rect
+	items          []DescriptionItem
+	label_fraction f64           = 0.35
+	size           ComponentSize = .medium
+	theme          ComponentTheme
 }
 
 pub fn description_list(config DescriptionListConfig) !Element {
@@ -183,22 +192,22 @@ pub fn description_list(config DescriptionListConfig) !Element {
 		}
 	}
 	return component_finish(Element{
-		...view(config.id, config.frame, BoxStyle{transparent: true}, children)
+		...view(config.id, config.frame, BoxStyle{ transparent: true }, children)
 		accessibility_role: 'group'
 	})
 }
 
 pub struct CollapsibleConfig {
 pub:
-	id          string
-	frame       Rect
-	title       string
-	open        bool
-	enabled     bool = true
-	action_id   string
-	children    []Element // Positioned relative to the body when open.
-	size        ComponentSize = .medium
-	theme       ComponentTheme
+	id        string
+	frame     Rect
+	title     string
+	open      bool
+	enabled   bool = true
+	action_id string
+	children  []Element // Positioned relative to the body when open.
+	size      ComponentSize = .medium
+	theme     ComponentTheme
 }
 
 // collapsible is controlled: handle action_id (or id) and rebuild with the
@@ -212,20 +221,20 @@ pub fn collapsible(config CollapsibleConfig) !Element {
 	mut children := [Element{
 		...button(component_part_id(config.id, 'trigger'), prefix + config.title,
 			rect(0, 0, config.frame.width, header_height), BoxStyle{
-			bg: config.theme.muted
-			radius: metrics.radius
-		}, TextStyle{
-			color: config.theme.foreground
-			size: metrics.font_size
-		})
-		action_id: if config.action_id.len > 0 { config.action_id } else { config.id }
-		enabled: config.enabled
+				bg:     config.theme.muted
+				radius: metrics.radius
+			}, TextStyle{
+				color: config.theme.foreground
+				size:  metrics.font_size
+			})
+		action_id:           if config.action_id.len > 0 { config.action_id } else { config.id }
+		enabled:             config.enabled
 		accessibility_label: config.title
 		accessibility_value: if config.open { 'expanded' } else { 'collapsed' }
 	}]
 	if config.open {
 		children << view('', rect(0, header_height, config.frame.width,
-			config.frame.height - header_height), BoxStyle{transparent: true}, config.children)
+			config.frame.height - header_height), BoxStyle{ transparent: true }, config.children)
 	}
-	return component_finish(view(config.id, config.frame, BoxStyle{transparent: true}, children))
+	return component_finish(view(config.id, config.frame, BoxStyle{ transparent: true }, children))
 }

@@ -1767,8 +1767,8 @@ fn remove_stale_nodes_below(root_key string, active map[string]bool) {
 fn node_has_ancestor_in_set(key string, keys map[string]bool) bool {
 	mut ancestor := key
 	for {
-		separator := ancestor.last_index('/') or { return false }
-		ancestor = ancestor[..separator]
+		slash := ancestor.last_index('/') or { return false }
+		ancestor = ancestor[..slash]
 		if ancestor in keys {
 			return true
 		}

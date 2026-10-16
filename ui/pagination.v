@@ -33,9 +33,15 @@ pub struct PaginationState {
 
 pub fn pagination_state(current_page int, total_pages int) PaginationState {
 	pages := if total_pages > 0 { total_pages } else { 1 }
-	page := if current_page < 1 { 1 } else if current_page > pages { pages } else { current_page }
+	page := if current_page < 1 {
+		1
+	} else if current_page > pages {
+		pages
+	} else {
+		current_page
+	}
 	return PaginationState{
-		page: page
+		page:  page
 		pages: pages
 	}
 }
@@ -64,7 +70,9 @@ pub fn (state PaginationState) with_disabled(disabled bool) PaginationState {
 pub fn (state PaginationState) with_visible_pages(visible int) PaginationState {
 	return PaginationState{
 		...state
-		visible: if visible < 5 { 5 } else if visible > pagination_max_visible_pages {
+		visible: if visible < 5 {
+			5
+		} else if visible > pagination_max_visible_pages {
 			pagination_max_visible_pages
 		} else {
 			visible
@@ -101,11 +109,11 @@ pub fn (state PaginationState) items() []PaginationItem {
 	mut items := []PaginationItem{}
 	if state.pages <= state.visible {
 		for page in 1 .. state.pages + 1 {
-			items << PaginationItem{page: page}
+			items << PaginationItem{ page: page }
 		}
 		return items
 	}
-	items << PaginationItem{page: 1}
+	items << PaginationItem{ page: 1 }
 	side := (state.visible - 3) / 2
 	start := if state.page <= side + 1 {
 		2
@@ -115,7 +123,7 @@ pub fn (state PaginationState) items() []PaginationItem {
 		state.page - side
 	}
 	if start > 2 {
-		items << PaginationItem{kind: .ellipsis, start: 2, end: start}
+		items << PaginationItem{ kind: .ellipsis, start: 2, end: start }
 	}
 	end := if state.page >= state.pages - side {
 		state.pages - 1
@@ -125,12 +133,12 @@ pub fn (state PaginationState) items() []PaginationItem {
 		state.page + side
 	}
 	for page in start .. end + 1 {
-		items << PaginationItem{page: page}
+		items << PaginationItem{ page: page }
 	}
 	if end < state.pages - 1 {
-		items << PaginationItem{kind: .ellipsis, start: end + 1, end: state.pages}
+		items << PaginationItem{ kind: .ellipsis, start: end + 1, end: state.pages }
 	}
-	items << PaginationItem{page: state.pages}
+	items << PaginationItem{ page: state.pages }
 	return items
 }
 
@@ -177,24 +185,37 @@ pub:
 	theme   ComponentTheme
 }
 
+// A disabled native button dims its title whatever color it was given, so the
+// current page only gets the primary fill while the control is enabled.
 fn pagination_button(config PaginationConfig, part string, text string, frame Rect, page int, enabled bool, selected bool) Element {
+	highlighted := selected && enabled
 	return Element{
 		...button(component_part_id(config.id, part), text, frame, BoxStyle{
-			bg: if selected { config.theme.primary } else { config.theme.muted }
+			bg:     if highlighted {
+				config.theme.primary
+			} else if selected {
+				config.theme.border
+			} else {
+				config.theme.muted
+			}
 			radius: component_metrics(config.size).radius
 		}, TextStyle{
-			color: if selected { config.theme.primary_foreground } else if enabled {
+			color: if highlighted {
+				config.theme.primary_foreground
+			} else if enabled {
 				config.theme.foreground
 			} else {
 				config.theme.muted_foreground
 			}
-			size: component_metrics(config.size).font_size
+			size:  component_metrics(config.size).font_size
 			align: .center
 		})
-		key: part
-		action_id: pagination_action_id(config.id, page)
-		enabled: enabled
-		accessibility_label: if part == 'previous' { 'Previous page' } else if part == 'next' {
+		key:                 part
+		action_id:           pagination_action_id(config.id, page)
+		enabled:             enabled
+		accessibility_label: if part == 'previous' {
+			'Previous page'
+		} else if part == 'next' {
 			'Next page'
 		} else {
 			'Page ${page}'
@@ -206,45 +227,46 @@ fn pagination_button(config PaginationConfig, part string, text string, frame Re
 pub fn pagination(config PaginationConfig) !Element {
 	component_validate_frame(config.frame)!
 	component_validate_id(config.id)!
-	state := config.state
+	page_state := config.state
 	metrics := component_metrics(config.size)
-	items := if config.compact { []PaginationItem{} } else { state.items() }
+	items := if config.compact { []PaginationItem{} } else { page_state.items() }
 	slots := items.len + 2
 	gap := math.min(metrics.gap, config.frame.width / f64(slots * 2))
 	width := math.min(metrics.height, (config.frame.width - gap * f64(slots - 1)) / f64(slots))
 	height := math.min(metrics.height, config.frame.height)
 	y := (config.frame.height - height) / 2
 	mut x := (config.frame.width - width * f64(slots) - gap * f64(slots - 1)) / 2
-	previous := state.previous_page() or { state.page }
-	next := state.next_page() or { state.page }
+	previous := page_state.previous_page() or { page_state.page }
+	next := page_state.next_page() or { page_state.page }
 	mut children := [pagination_button(config, 'previous', '‹', rect(x, y, width, height),
-		previous, previous != state.page, false)]
+		previous, previous != page_state.page, false)]
 	x += width + gap
 	for item in items {
 		frame := rect(x, y, width, height)
 		if item.kind == .page {
-			selected := item.page == state.page
+			// The current page stays enabled: pagination_page_from_action already
+			// ignores it, and a disabled button would be announced as dimmed.
 			children << pagination_button(config, 'page:${item.page}', item.page.str(), frame,
-				item.page, !state.disabled && !selected, selected)
+				item.page, !page_state.disabled, item.page == page_state.page)
 		} else {
 			children << Element{
 				...label('', '…', frame, TextStyle{
 					color: config.theme.muted_foreground
-					size: metrics.font_size
+					size:  metrics.font_size
 					align: .center
 				})
-				key: 'ellipsis:${item.start}:${item.end}'
+				key:                 'ellipsis:${item.start}:${item.end}'
 				accessibility_label: 'Pages ${item.start} to ${item.end - 1}'
 			}
 		}
 		x += width + gap
 	}
 	children << pagination_button(config, 'next', '›', rect(x, y, width, height), next,
-		next != state.page, false)
+		next != page_state.page, false)
 	return component_finish(Element{
-		...view(config.id, config.frame, BoxStyle{transparent: true}, children)
-		accessibility_role: 'navigation'
+		...view(config.id, config.frame, BoxStyle{ transparent: true }, children)
+		accessibility_role:  'navigation'
 		accessibility_label: 'Pagination'
-		accessibility_value: 'Page ${state.page} of ${state.pages}'
+		accessibility_value: 'Page ${page_state.page} of ${page_state.pages}'
 	})
 }

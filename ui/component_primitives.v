@@ -58,19 +58,19 @@ pub fn component_theme(dark bool) ComponentTheme {
 		return ComponentTheme{}
 	}
 	return ComponentTheme{
-		background: 0x172033
-		foreground: 0xf8fafc
-		muted: 0x263449
-		muted_foreground: 0xb4c0d0
-		border: 0x475569
-		primary: 0x93c5fd
+		background:         0x172033
+		foreground:         0xf8fafc
+		muted:              0x263449
+		muted_foreground:   0xb4c0d0
+		border:             0x475569
+		primary:            0x93c5fd
 		primary_foreground: 0x172033
-		success: 0x86efac
+		success:            0x86efac
 		success_foreground: 0x172033
-		warning: 0xfbbf24
+		warning:            0xfbbf24
 		warning_foreground: 0x172033
-		danger: 0xfca5a5
-		danger_foreground: 0x172033
+		danger:             0xfca5a5
+		danger_foreground:  0x172033
 	}
 }
 
@@ -117,6 +117,17 @@ pub fn component_inset(frame Rect, padding f64) !Rect {
 	return rect(frame.x + px, frame.y + py, frame.width - 2 * px, frame.height - 2 * py)
 }
 
+// component_text_width_estimate approximates how wide text renders. ui/ has no
+// backend-neutral measurement, so wide (CJK, emoji) runes count as one em and the
+// rest as a typical proportional glyph; callers add padding for the slack.
+fn component_text_width_estimate(text string, font_size f64) f64 {
+	mut ems := 0.0
+	for r in text.runes() {
+		ems += if r >= 0x2e80 { 1.0 } else { 0.62 }
+	}
+	return ems * font_size
+}
+
 fn component_local(frame Rect) Rect {
 	return rect(0, 0, frame.width, frame.height)
 }
@@ -127,12 +138,12 @@ fn component_part_id(id string, part string) string {
 
 fn component_box(bg u32, border u32, radius f64) BoxStyle {
 	return BoxStyle{
-		bg: bg
-		radius: radius
-		border_color: border
-		border_left: 1
-		border_top: 1
-		border_right: 1
+		bg:            bg
+		radius:        radius
+		border_color:  border
+		border_left:   1
+		border_top:    1
+		border_right:  1
 		border_bottom: 1
 	}
 }
@@ -140,8 +151,8 @@ fn component_box(bg u32, border u32, radius f64) BoxStyle {
 fn component_text(text string, frame Rect, color u32, size f64, bold bool) Element {
 	return label('', text, frame, TextStyle{
 		color: color
-		size: size
-		bold: bold
+		size:  size
+		bold:  bold
 	})
 }
 

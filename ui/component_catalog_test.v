@@ -29,9 +29,9 @@ fn test_component_inset_clamps_in_the_original_coordinate_space() {
 }
 
 fn test_component_frames_reject_negative_and_non_finite_geometry() {
-	for frame in [rect(0, 0, -1, 10), rect(0, math.inf(1), 10, 10),
-		rect(0, 0, math.nan(), 10), rect(1e308, 0, 1e308, 1)] {
-		if _ := badge(BadgeConfig{frame: frame}) {
+	for frame in [rect(0, 0, -1, 10), rect(0, math.inf(1), 10, 10), rect(0, 0, math.nan(), 10),
+		rect(1e308, 0, 1e308, 1)] {
+		if _ := badge(BadgeConfig{ frame: frame }) {
 			assert false, 'invalid frame accepted'
 		}
 	}
@@ -61,6 +61,7 @@ fn test_avatar_initials_and_image_selection() {
 	assert avatar_initials('Ada') == 'A'
 	assert avatar_initials('张 三') == '张三'
 	assert avatar_initials(' \t\n ') == '?'
+	assert avatar_initials('e\u0301mile zola') == 'E\u0301Z'
 	fallback := avatar(name: 'Ada Lovelace', frame: rect(0, 0, 40, 40)) or { panic(err) }
 	assert fallback.children[0].kind == .label
 	assert fallback.children[0].text == 'AL'
@@ -70,8 +71,13 @@ fn test_avatar_initials_and_image_selection() {
 }
 
 fn test_tag_close_action_and_disabled_state() {
-	el := tag(id: 'filter', text: 'Open', frame: rect(0, 0, 120, 32),
-		close_action: 'remove-filter', enabled: false) or { panic(err) }
+	el := tag(
+		id:           'filter'
+		text:         'Open'
+		frame:        rect(0, 0, 120, 32)
+		close_action: 'remove-filter'
+		enabled:      false
+	) or { panic(err) }
 	assert el.children.len == 2
 	assert el.children[1].id == 'filter:component:close'
 	assert el.children[1].action_id == 'remove-filter'
@@ -116,8 +122,14 @@ fn test_keyboard_hint_and_application_owned_link() {
 }
 
 fn test_alert_and_empty_state_actions() {
-	message := alert(id: 'message', title: 'Saved', description: 'All changes saved.',
-		frame: rect(0, 0, 200, 80), dismiss_action: 'dismiss', enabled: false) or { panic(err) }
+	message := inline_alert(
+		id:             'message'
+		title:          'Saved'
+		description:    'All changes saved.'
+		frame:          rect(0, 0, 200, 80)
+		dismiss_action: 'dismiss'
+		enabled:        false
+	) or { panic(err) }
 	assert message.accessibility_role == 'alert'
 	assert message.children[2].action_id == 'dismiss'
 	assert !message.children[2].enabled
@@ -140,8 +152,11 @@ fn test_group_box_local_content_and_duplicate_identity() {
 fn test_description_list_empty_and_column_validation() {
 	empty_list := description_list(DescriptionListConfig{}) or { panic(err) }
 	assert empty_list.children.len == 0
-	el := description_list(frame: rect(0, 0, 106, 40), label_fraction: 0.4,
-		items: [DescriptionItem{'Name', 'Ada'}, DescriptionItem{'Status', 'Active'}]) or { panic(err) }
+	el := description_list(
+		frame:          rect(0, 0, 106, 40)
+		label_fraction: 0.4
+		items:          [DescriptionItem{'Name', 'Ada'}, DescriptionItem{'Status', 'Active'}]
+	) or { panic(err) }
 	assert el.children[0].frame == rect(0, 0, 40, 20)
 	assert el.children[1].frame == rect(46, 0, 60, 20)
 	for fraction in [-0.1, 1.1, math.nan()] {
@@ -157,8 +172,14 @@ fn test_collapsible_is_controlled_and_unmounts_closed_content() {
 	assert closed.children.len == 1
 	assert closed.children[0].action_id == 'details'
 	assert closed.children[0].accessibility_value == 'collapsed'
-	opened := collapsible(id: 'details', open: true, frame: rect(0, 0, 200, 100),
-		action_id: 'toggle-details', enabled: false, children: [child]) or { panic(err) }
+	opened := collapsible(
+		id:        'details'
+		open:      true
+		frame:     rect(0, 0, 200, 100)
+		action_id: 'toggle-details'
+		enabled:   false
+		children:  [child]
+	) or { panic(err) }
 	assert opened.children.len == 2
 	assert opened.children[1].frame == rect(0, 32, 200, 68)
 	assert opened.children[0].action_id == 'toggle-details'
@@ -166,15 +187,22 @@ fn test_collapsible_is_controlled_and_unmounts_closed_content() {
 }
 
 fn test_breadcrumb_identity_current_location_and_disabled_items() {
-	items := [BreadcrumbItem{id: 'home', label: 'Home', action_id: 'go-home'},
-		BreadcrumbItem{id: 'projects', label: 'Projects', enabled: false},
-		BreadcrumbItem{id: 'current', label: 'Current'}]
+	items := [BreadcrumbItem{ id: 'home', label: 'Home', action_id: 'go-home' },
+		BreadcrumbItem{ id: 'projects', label: 'Projects', enabled: false },
+		BreadcrumbItem{ id: 'current', label: 'Current' }]
 	el := breadcrumb(id: 'nav', frame: rect(0, 0, 300, 32), items: items) or { panic(err) }
 	assert el.children.len == 5
 	assert el.children[0].action_id == 'go-home'
 	assert !el.children[2].enabled
 	assert el.children[4].kind == .label
 	assert el.children[4].accessibility_value == 'current'
+	// Items are packed from the left and sized to their labels, so each separator
+	// sits right after the item before it.
+	assert el.children[0].frame.x == 0
+	assert el.children[1].frame.x == el.children[0].frame.width
+	assert el.children[2].frame.width > el.children[0].frame.width
+	last := el.children[4].frame
+	assert last.x + last.width < 300
 	reordered := breadcrumb(id: 'nav', items: [items[1], items[0], items[2]]) or { panic(err) }
 	assert reordered.children[2].id == el.children[0].id
 	if _ := breadcrumb(id: 'nav', items: [items[0], items[0]]) {
@@ -202,10 +230,10 @@ fn test_pagination_normalization_and_navigation_guards() {
 
 fn test_pagination_upstream_page_window() {
 	items := pagination_state(5, 10).with_visible_pages(7).items()
-	assert items == [PaginationItem{page: 1}, PaginationItem{kind: .ellipsis, start: 2, end: 3},
-		PaginationItem{page: 3}, PaginationItem{page: 4}, PaginationItem{page: 5},
-		PaginationItem{page: 6}, PaginationItem{page: 7},
-		PaginationItem{kind: .ellipsis, start: 8, end: 10}, PaginationItem{page: 10}]
+	assert items == [PaginationItem{ page: 1 }, PaginationItem{ kind: .ellipsis, start: 2, end: 3 },
+		PaginationItem{ page: 3 }, PaginationItem{ page: 4 }, PaginationItem{ page: 5 },
+		PaginationItem{ page: 6 }, PaginationItem{ page: 7 },
+		PaginationItem{ kind: .ellipsis, start: 8, end: 10 }, PaginationItem{ page: 10 }]
 }
 
 fn test_pagination_windows_cover_every_page_without_hiding_current() {
@@ -255,7 +283,26 @@ fn test_pagination_rendering_and_compact_mode() {
 	assert !el.children[0].enabled
 	assert el.children[el.children.len - 1].enabled
 	assert el.children[el.children.len - 1].action_id == pagination_action_id('pages', 2)
-	compact := pagination(id: 'pages', compact: true, state: pagination_state(3, 10).with_disabled(true)) or { panic(err) }
+	// The current page stays enabled so native backends do not dim its title;
+	// the decoder is what turns a click on it into nothing.
+	current := el.children[1]
+	assert current.text == '1'
+	assert current.enabled
+	assert current.accessibility_value == 'current'
+	assert current.box.bg == ComponentTheme{}.primary
+	assert (pagination_page_from_action('pages', pagination_state(1, 10), current.action_id) or {
+		-1
+	}) == -1
+	disabled := pagination(id: 'pages', state: pagination_state(1, 10).with_disabled(true)) or {
+		panic(err)
+	}
+	assert !disabled.children[1].enabled
+	assert disabled.children[1].box.bg != ComponentTheme{}.primary
+	compact := pagination(
+		id:      'pages'
+		compact: true
+		state:   pagination_state(3, 10).with_disabled(true)
+	) or { panic(err) }
 	assert compact.children.len == 2
 	assert !compact.children[0].enabled
 	assert !compact.children[1].enabled
@@ -275,15 +322,25 @@ fn test_catalog_generated_geometry_handles_tiny_frames() {
 	for extent in [0.0, 0.5, 1.0, 8.0, 32.0, 200.0] {
 		frame := rect(10, 20, extent, extent / 2)
 		elements := [badge(frame: frame) or { panic(err) }, avatar(frame: frame) or { panic(err) },
-			tag(id: 'tag', frame: frame, close_action: 'close') or { panic(err) }, separator(frame: frame) or { panic(err) },
-			skeleton(frame: frame, circle: true) or { panic(err) }, kbd(frame: frame, keys: ['Ctrl', 'K']) or { panic(err) },
-			link(id: 'link', frame: frame) or { panic(err) }, alert(id: 'alert', frame: frame, title: 'Title',
-				description: 'Message', dismiss_action: 'dismiss') or { panic(err) },
+			tag(id: 'tag', frame: frame, close_action: 'close') or { panic(err) },
+			separator(frame: frame) or { panic(err) },
+			skeleton(frame: frame, circle: true) or { panic(err) },
+			kbd(frame: frame, keys: ['Ctrl', 'K']) or { panic(err) },
+			link(id: 'link', frame: frame) or { panic(err) }, inline_alert(
+				id:             'alert'
+				frame:          frame
+				title:          'Title'
+				description:    'Message'
+				dismiss_action: 'dismiss'
+			) or { panic(err) },
 			empty_state(id: 'empty', frame: frame, action_id: 'create') or { panic(err) },
 			group_box(frame: frame, title: 'Group') or { panic(err) },
 			description_list(frame: frame, items: [DescriptionItem{'A', 'B'}]) or { panic(err) },
-			collapsible(id: 'collapse', frame: frame, open: true) or { panic(err) },
-			breadcrumb(id: 'nav', frame: frame, items: [BreadcrumbItem{id: 'a'}, BreadcrumbItem{id: 'b'}]) or { panic(err) },
+			collapsible(id: 'collapse', frame: frame, open: true) or { panic(err) }, breadcrumb(
+				id:    'nav'
+				frame: frame
+				items: [BreadcrumbItem{ id: 'a' }, BreadcrumbItem{ id: 'b' }]
+			) or { panic(err) },
 			pagination(id: 'pages', frame: frame, state: pagination_state(5, 20)) or { panic(err) }]
 		for el in elements {
 			catalog_assert_local_geometry(el)
