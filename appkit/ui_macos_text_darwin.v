@@ -172,8 +172,7 @@ fn native_text_view_set_paragraph_style(tv macos.Id, alignment int, head_indent 
 	if objc_is_nil(style) {
 		style = macos.msg_id(macos.alloc('NSMutableParagraphStyle'), 'init')
 	}
-	native_alignment := if alignment == 1 { i64(1) } else if alignment == 2 { i64(2) } else { i64(0) }
-	macos.msg_void_i64(style, 'setAlignment:', native_alignment)
+	macos.msg_void_i64(style, 'setAlignment:', native_text_alignment(alignment))
 	macos.msg_void_f64(style, 'setHeadIndent:', if head_indent > 0 { head_indent } else { 0 })
 	macos.msg_void_f64(style, 'setFirstLineHeadIndent:', if first_line_indent > 0 { first_line_indent } else { 0 })
 	macos.msg_void_f64(style, 'setTailIndent:', 0)
@@ -240,9 +239,16 @@ fn native_control_set_attributed_title(control macos.Id, text string, color u32,
 	macos.release(attributed)
 }
 
-// NSTextAlignment numbers center differently on Intel, which kept AppKit's
-// original values, than on Apple silicon, which uses the iOS ones.
-const native_text_alignment_center = $if amd64 { i64(2) } $else { i64(1) }
+// native_text_alignment turns the alignment numbering align_value uses into
+// NSTextAlignment. AppKit numbers center and right the other way round on Intel,
+// which kept its original values, from Apple silicon, which uses the iOS ones.
+fn native_text_alignment(align int) i64 {
+	return match align {
+		1 { $if amd64 { i64(2) } $else { i64(1) } }
+		2 { $if amd64 { i64(1) } $else { i64(2) } }
+		else { i64(0) }
+	}
+}
 
 // native_button_set_attributed_title centres a styled button's title. NSButton
 // draws an attributed title with that string's own paragraph style, and one with
@@ -254,7 +260,7 @@ fn native_button_set_attributed_title(button macos.Id, text string, color u32, s
 	}
 	attrs := native_text_attributes(color, 0, size, '', bold, italic, underline, false, '')
 	style := macos.msg_id(macos.alloc('NSMutableParagraphStyle'), 'init')
-	macos.msg_void_i64(style, 'setAlignment:', native_text_alignment_center)
+	macos.msg_void_i64(style, 'setAlignment:', native_text_alignment(align_value(.center)))
 	macos.msg_void_i64(style, 'setLineBreakMode:', if lines <= 1 {
 		i64(ns_line_break_by_truncating_tail)
 	} else {

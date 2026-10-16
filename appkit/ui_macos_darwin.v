@@ -98,6 +98,7 @@ mut:
 	node_content_sig    map[string]string
 	node_tooltips       map[string]string
 	node_shortened      map[string]ShortenedText
+	label_line_heights  map[string]f64 // font name and size -> one laid-out line of ASCII
 	node_menu_sig       map[string]string
 	node_menu_items     map[string][]u64
 	textview_ids        map[u64]string // NSTextView pointer -> lookup id (no tag on NSView)
@@ -2098,7 +2099,7 @@ fn native_update_label(view NativeView, frame NativeRect, text string, text_hex 
 		native_control_set_attributed_title(label_view, text, text_hex, size, family, bold, italic,
 			underline)
 	}
-	macos.msg_void_i64(label_view, 'setAlignment:', i64(align))
+	macos.msg_void_i64(label_view, 'setAlignment:', native_text_alignment(align))
 	native_apply_line_limit(label_view, lines)
 	// Only NSTextField carries a line budget; an NSButton has none to set.
 	macos.msg_void_i64(label_view, 'setMaximumNumberOfLines:', i64(if lines > 1 {
@@ -2164,8 +2165,11 @@ fn native_apply_label_valign(label_view NativeView, frame NativeRect, lines int,
 // it had to break against. Telling the field that width makes its intrinsic size the
 // size the text really wants, so that is what a wrapping label is measured by.
 //
-// One line needs no measuring at all: it is the font's own line height, which the
-// font's metrics give directly, so a grid of labels pays no layout pass for it.
+// One line is not the font's ascender, descender and leading: the cell lays it out a
+// little taller, and some faces (Helvetica) much taller, so a field cut to those
+// metrics clips descenders. A line of ASCII is as tall as its font makes it, so that
+// is measured once per font and a grid of labels pays no layout pass for it. Other
+// text may draw with a taller fallback face and is measured each time.
 fn native_label_content_height(label_view NativeView, frame NativeRect, lines int) f64 {
 	if lines > 1 {
 		macos.msg_void_f64(label_view, 'setPreferredMaxLayoutWidth:', frame.width)
@@ -2176,9 +2180,27 @@ fn native_label_content_height(label_view NativeView, frame NativeRect, lines in
 	if native_is_nil(font) {
 		return 0
 	}
-	// descender is reported as a negative distance below the baseline.
-	return macos.msg_f64(font, 'ascender') - macos.msg_f64(font, 'descender') +
-		macos.msg_f64(font, 'leading')
+	text := macos.utf8_string(macos.msg_id(label_view, 'stringValue'))
+	if text.len == 0 {
+		return 0
+	}
+	if !text.is_ascii() {
+		return native_single_line_height(label_view)
+	}
+	key := '${macos.utf8_string(macos.msg_id(font, 'fontName'))}:${macos.msg_f64(font, 'pointSize')}'
+	mut st := state()
+	if height := st.label_line_heights[key] {
+		return height
+	}
+	height := native_single_line_height(label_view)
+	st.label_line_heights[key] = height
+	return height
+}
+
+// A width left over from when the label wrapped would make it measure as wrapped.
+fn native_single_line_height(label_view NativeView) f64 {
+	macos.msg_void_f64(label_view, 'setPreferredMaxLayoutWidth:', 0)
+	return macos.msg_point(label_view, 'intrinsicContentSize').y
 }
 
 // NSLineBreakMode values.
