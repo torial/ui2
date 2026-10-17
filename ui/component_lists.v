@@ -87,8 +87,9 @@ pub:
 }
 
 // ListModifiers are the modifier keys held during a click. ui2's pointer
-// events do not carry them, so the application supplies what it knows (see
-// list_modifiers) or offers its own way to toggle and extend.
+// events do not carry them, so the application supplies them
+// (list_held_modifiers for a click, list_modifiers for a key) or offers its own
+// way to toggle and extend.
 pub struct ListModifiers {
 pub:
 	toggle bool // Cmd on macOS, Ctrl elsewhere: add or remove one row.
@@ -100,6 +101,16 @@ pub fn list_modifiers(event KeyEvent) ListModifiers {
 	return ListModifiers{
 		toggle: event.cmd || event.ctrl
 		extend: event.shift
+	}
+}
+
+// list_held_modifiers reads the toggle and extend modifiers held right now
+// (key_modifiers), for the click being handled.
+pub fn list_held_modifiers() ListModifiers {
+	held := key_modifiers()
+	return ListModifiers{
+		toggle: held.cmd || held.ctrl
+		extend: held.shift
 	}
 }
 

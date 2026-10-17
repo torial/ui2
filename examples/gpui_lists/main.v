@@ -494,7 +494,7 @@ fn build() ui2.Element {
 
 	// List.
 	children << heading(theme, 'List', l.x1, 88, l.column)
-	children << note(theme, 'Sections, icons, avatars, badges and row actions. Clicks carry no modifier keys, so choose what one does:',
+	children << note(theme, 'Sections, icons, avatars, badges and row actions. Cmd-click toggles and Shift-click extends; a plain click does:',
 		ui2.rect(l.x1, 112, l.column, 36))
 	children << ui2.button_group(click_modes(app, theme, l)) or { panic(err) }
 	children << ui2.list(files_config(app, theme)) or { panic(err) }
@@ -553,10 +553,13 @@ fn build() ui2.Element {
 
 // ── Events ──────────────────────────────────────────────────────────
 
+// modifiers are the keys held during the click, or what the click-mode switch
+// makes a plain click do (for touch screens).
 fn (app &Gallery) modifiers() ui2.ListModifiers {
+	held := ui2.list_held_modifiers()
 	return ui2.ListModifiers{
-		toggle: app.click_mode == .toggle
-		extend: app.click_mode == .extend
+		toggle: held.toggle || app.click_mode == .toggle
+		extend: held.extend || app.click_mode == .extend
 	}
 }
 

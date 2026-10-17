@@ -138,8 +138,8 @@ fn files_config(m &Model) ui2.ListConfig {
 // build:
 ui2.list(files_config(m))!
 
-// on_event (the modifiers come from wherever the application knows them):
-if step := ui2.list_update(files_config(m), event, m.modifiers) {
+// on_event (Cmd/Ctrl-click toggles, Shift-click extends):
+if step := ui2.list_update(files_config(m), event, ui2.list_held_modifiers()) {
 	m.files = step.state
 	if step.confirmed { open(step.item) }
 	if step.action == 'share' { share(step.item) }
@@ -192,6 +192,7 @@ Shift range starts), `hovered`. `ListStep`: `state`, `confirmed`, `secondary`,
 | `list_row(config) !Element`, `list_row_height(item, size)` | One row the way the list draws it, for rows a `virtual_list` builds itself. |
 | `list_press(id, action) ?ListPress` | Decodes a press on a row or row action (and the action of a hover event) without looking the row up, for such virtual lists. |
 | `list_modifiers(event) ListModifiers` | `toggle` (Cmd or Ctrl) and `extend` (Shift) from a key event. |
+| `list_held_modifiers() ListModifiers` | The same from the keys held right now, for a click. |
 | `list_row_action(id, item_id)`, `list_item_action_action(id, item_id, action_id)`, `list_scroll_id(id)` | Action and element ids. |
 
 ### Selection
@@ -213,11 +214,11 @@ The keyboard skips headers, footers, separators and disabled rows, as GPUI Kit's
 row cache does.
 
 **Modifier keys and clicks.** ui2's pointer events do not carry the modifier
-keys, and the native backends report no key event for a modifier pressed on its
-own, so a component cannot know that Cmd was held during a click. The
-application passes `ListModifiers` to `list_update`; the gallery offers a
-Click / Toggle / Range switch. Every keyboard selection works with its real
-modifiers. See Requested changes.
+keys, so the application passes `ListModifiers` to `list_update`:
+`list_held_modifiers()` reads the keys held during the click (`key_modifiers`),
+so Cmd/Ctrl-click toggles a row and Shift-click extends from the anchor. On a
+touch screen there are no such keys; the gallery adds a Click / Toggle / Range
+switch for that. Every keyboard selection works with its real modifiers.
 
 ### Looks and states
 
@@ -359,27 +360,6 @@ not arrive, so on AppKit the clear button clears the query.
 | Empty state | Implemented, naming the query |
 | Match highlighting | Not in GPUI Kit; `ListMatch.ranges` reports the matched runes, but rows are not highlighted, since a ui2 label has one style. |
 | Footer action slot, custom trigger, `Select`/`Combobox` popups | Outside this group: put a `searchable_list` in a `popover` and a button below it. |
-
-## Requested changes to shared code
-
-- **Pointer modifiers.** Pointer and button actions carry no modifier keys on
-  any backend, so Cmd-click and Shift-click selection needs the application's
-  help. A `current_key_modifiers()` query, or modifiers in pointer events, would
-  let `list_update` take them directly.
-- **Custom renderer: Scroll fill.** `ui/ui_immediate.c.v` fills a Scroll
-  element with `box.bg` even when `box.transparent` is set (AppKit honors it).
-  The list sets both, so its rounded border stays whole on AppKit and the custom
-  renderer fills with the list's background.
-- **AppKit: text fields in a dark theme.** A bezeled `NSTextField` draws its own
-  light fill, ignoring the declared background, so an `input_group` (and the
-  searchable list's field) shows light text on white in a dark theme.
-- **NOTICE.** `ui/component_lists.v` and `ui/component_lists_search.v` follow
-  GPUI Kit behavior closely enough to carry its Apache-2.0 header: the row model
-  and wrapping navigation of `crates/component/src/list/cache.rs` and
-  `list/list.rs`, and the matching and group rules of
-  `crates/component/src/searchable_list/`. List them under third_party/gpui-kit.
-- **Tracker.** `docs/gpui-kit-migration.md` can mark List and VirtualList done,
-  and the searchable list behind Select and Combobox.
 
 ## Verification
 
