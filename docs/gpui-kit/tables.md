@@ -385,15 +385,12 @@ checkboxes are `checkbox` with `checked`, `unchecked` or `mixed`; the body is a
 `rowgroup`; resize handles are `separator`s labelled `Resize <title>`; the
 loading skeleton is a `status`.
 
-## Changes requested outside this group
+## Platform notes
 
-- AppKit role mapping for `table` and `grid` (AXTable), `row` (AXRow),
-  `columnheader` and `cell` (AXCell), and `rowgroup` (AXGroup), and a `mixed`
-  checkbox value (NSMixedState). Until then those elements keep their native
-  roles.
-- The custom renderer's `tray` glyph is Material's filled inbox while SF
-  Symbols' `tray` is an outline; an outlined glyph would make the empty state
-  match across renderers.
+- AppKit reads tables, grids and row groups as groups; rows, cells and column
+  headers keep their native button role so they stay pressable.
+- The empty state's `tray` icon is an outline on Apple platforms and Material's
+  filled inbox elsewhere: Material Icons has no outlined tray.
 
 ## Attribution
 

@@ -450,18 +450,6 @@ field, so the multi-select trigger lives in `select_box(multiple: true)`.
 | `header` / `footer` slots, custom row `child`, `bordered(false)` | Omitted: rows and chrome are drawn by the component. |
 | Virtualized rows, `scroll_bounce` | Omitted: every row is built (fine for hundreds of commands); scrolling is the backend's. |
 
-## Changes requested outside this group
-
-- **AppKit accessibility roles:** map `listbox` and `option` (to `AXList` and an
-  option-like role such as `AXStaticText` with selection) so the rows stop
-  reporting themselves as buttons.
-- **AppKit text fields in dark themes:** a bezeled `NSTextField` draws its own
-  white background under the light system appearance and ignores
-  `backgroundColor`, so a field with a dark theme's light text is hard to read.
-  Setting the field's `appearance` to dark Aqua when its declared background is
-  dark (or drawing it unbezeled with the declared border) would fix every
-  field-based component (input group, number input, these pickers).
-
 ## Attribution
 
 The command palette's filtering and navigation rules (label and keyword
