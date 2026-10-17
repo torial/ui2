@@ -2427,7 +2427,18 @@ fn native_place_label_text(label_view NativeView, frame NativeRect, lines int, v
 		drawn_lines = 1
 	}
 	native_apply_label_valign(label_view, frame, drawn_lines, valign, boxed)
+	if drawn_lines == 1 && macos.msg_i64(label_view, 'alignment') == native_text_alignment(1) {
+		// A centered line cut to the width measure_text_width reports came out
+		// shortened to an ellipsis, though the same field fits it left or right
+		// aligned. The field is widened by a few points on each side, which keeps
+		// the text where it was and gives AppKit the room it wants.
+		field_frame := macos.msg_rect(label_view, 'frame')
+		macos.msg_void_rect(label_view, 'setFrame:', macos.rect(field_frame.x - native_centered_label_slack,
+			field_frame.y, field_frame.width + native_centered_label_slack * 2, field_frame.height))
+	}
 }
+
+const native_centered_label_slack = 4.0
 
 fn native_label_fits_one_line(label_view NativeView, frame NativeRect) bool {
 	wrapped := native_label_content_height(label_view, frame, 0)
