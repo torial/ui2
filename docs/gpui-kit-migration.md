@@ -1,6 +1,7 @@
 # GPUI Kit component migration
 
-This is a first portable migration, not complete GPUI Kit parity. It compares
+This port is in progress; the [parity tracker](#parity-tracker) lists every
+GPUI Kit component and its status. Batch 1 compared
 UI2 at `15709bb28ddb4a05c499f52936a11cf0feedb22d` with
 [GPUI Kit](https://github.com/longbridge/gpui-kit) at
 `1b6059c13315dc5c304759ad3aa666e0b6e301d8`.
@@ -121,18 +122,100 @@ They are retained rather than replaced by parallel implementations. These are
 counterparts, not assertions that every GPUI option or interaction is present.
 The existing `spinner` is a selection control, not a GPUI loading indicator.
 
-## Remaining migration work
+## Parity tracker
 
-Not implemented here: virtual lists/tables and selection models; dock and
-resizable panel persistence; command/searchable lists and advanced comboboxes;
-calendar/date/time/color pickers; loading spinner/shimmer; toast lifecycle,
-hover-card/popover/sheet focus management; radio/rating/stepper; forms and
-settings; toolbars/sidebars/status bars; attachment/message/questionnaire/speech
-components; Markdown/HTML, diff, syntax highlighting and LSP; icon assets;
-platform focus traps and full accessibility parity. GPUI's application/runtime,
-WebAssembly and JavaScript extension infrastructure are not part of this port.
-These larger features need their own renderer/input work and behavior tests;
-this change deliberately does not add placeholders claiming they are supported.
+The target is every component GPUI Kit documents (`website/component/*.md`,
+80 pages). Status per page: **Done** — ported with its documented, portable
+features; **Existing** — a ui2 component predating the port covers it, but its
+options have not yet been compared with GPUI Kit's; **Partial** — some of it
+exists; **Planned** — scheduled for the named batch. Per-group details live in
+[`docs/gpui-kit/`](gpui-kit/).
+
+| GPUI Kit | ui2 | Status | Notes |
+| --- | --- | --- | --- |
+| accordion | `accordion` | Existing | Feature audit pending |
+| alert-dialog | — | Planned (batch 3) | In-window dialog; native `confirm` exists |
+| alert | `inline_alert` | Done (batch 1) |  |
+| attachment | — | Planned (batch 7) |  |
+| avatar | `avatar` | Partial | Avatar group in batch 2 |
+| badge | `badge` | Done (batch 1) |  |
+| bubble | — | Planned (batch 7) |  |
+| button | `button` | In progress (batch 2) | Variants, button group |
+| calendar | — | Planned (batch 4) |  |
+| carousel | `carousel` | Existing | Feature audit pending |
+| chart | `chart` | Partial | Line, bar, scatter, pie, doughnut; area, candlestick, radar, sankey, stacking in batch 9 |
+| checkbox | `checkbox` | Existing | Feature audit pending |
+| clipboard | — | Planned (batch 3) | `set_clipboard_text`/`clipboard_text` exist |
+| collapsible | `collapsible` | Done (batch 1) |  |
+| color-picker | — | Planned (batch 4) |  |
+| combobox | — | Planned (batch 5) |  |
+| command | — | Planned (batch 5) |  |
+| data-table | — | Planned (batch 5) |  |
+| date-picker | — | Planned (batch 4) |  |
+| description-list | `description_list` | Done (batch 1) |  |
+| dialog | `modal_view`, `popup` | Partial | Structured dialog in batch 3 |
+| diff | — | Planned (batch 8) |  |
+| dock | — | Planned (batch 6) |  |
+| dropdown_button | — | Planned (batch 3) | Needs dropdown menu |
+| editor | `text_editor`, `text_area` | Partial | Code-editor features in batch 8 |
+| empty | `empty_state` | Done (batch 1) |  |
+| focus-trap | — | Planned (batch 3) |  |
+| form | — | Planned (batch 6) |  |
+| group-box | `group_box` | Done (batch 1) |  |
+| hover-card | — | Planned (batch 3) |  |
+| icon | — | In progress (batch 2) |  |
+| image | `image` | Existing | Feature audit pending |
+| index | — | Not applicable | Upstream documentation landing page |
+| input-group | — | In progress (batch 2) |  |
+| input | `text_field` | Partial | Prefix, suffix and clear button in batch 2 |
+| kbd | `kbd` | Done (batch 1) |  |
+| label | `label` | Existing |  |
+| list | — | Planned (batch 5) |  |
+| marker | — | Planned (batch 7) |  |
+| menu | `set_menu_bar`, `Element.menu`, tray | Partial | Dropdown/popup menus in batch 3 |
+| message-scroller | — | Planned (batch 7) |  |
+| message | — | Planned (batch 7) |  |
+| notification | — | Planned (batch 3) | `after` timers exist |
+| number-input | — | In progress (batch 2) |  |
+| otp-input | — | In progress (batch 2) |  |
+| pagination | `pagination` | Done (batch 1) |  |
+| plot | — | Planned (batch 9) |  |
+| popover | — | Planned (batch 3) |  |
+| progress | `progress_bar` | Partial | Circular progress in batch 2 |
+| questionnaire | — | Planned (batch 7) |  |
+| radio | — | In progress (batch 2) |  |
+| rating | — | In progress (batch 2) |  |
+| resizable | — | Planned (batch 6) |  |
+| root | `screen` | Not applicable | GPUI window root; ui2 builds a `screen` |
+| scrollable | `scroll` | Existing |  |
+| select | `dropdown`, `spinner` | Partial | Searchable select in batch 5 |
+| settings | — | Planned (batch 6) |  |
+| sheet | — | Planned (batch 3) |  |
+| shimmer | — | In progress (batch 2) |  |
+| sidebar | — | Planned (batch 6) |  |
+| skeleton | `skeleton` | Done (batch 1) |  |
+| slider | `slider` | Existing | Feature audit pending |
+| speech | — | Planned (batch 7) | Needs platform speech recognition |
+| spinner | — | In progress (batch 2) | `spinner` is ui2's selection control |
+| status-bar | — | Planned (batch 6) |  |
+| stepper | — | In progress (batch 2) |  |
+| switch | `switch_control` | Existing |  |
+| table | — | Planned (batch 5) |  |
+| tabs | `tabbed_panel` | Existing | Feature audit pending |
+| tag | `tag` | Done (batch 1) |  |
+| text-view | — | Planned (batch 8) | Markdown/HTML |
+| textarea | `text_area` | Existing |  |
+| theme | `ComponentTheme` | Partial | Light/dark tokens; theme registry later |
+| time-field | — | Planned (batch 4) |  |
+| title-bar | — | Planned (batch 6) |  |
+| toggle | `toggle_button` | In progress (batch 2) | Toggle group |
+| toolbar | — | Planned (batch 6) |  |
+| tooltip | `with_tooltip` | Existing |  |
+| tree | `tree_view` | Existing | Feature audit pending |
+| virtual-list | — | Planned (batch 5) |  |
+
+GPUI's application runtime, WebAssembly and JavaScript extension infrastructure
+are not part of this port.
 
 ## Verification and gallery
 
