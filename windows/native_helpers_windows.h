@@ -1406,6 +1406,30 @@ static inline void ui2_win_draw_borders(HDC dc, const RECT *rect, unsigned int c
 	DeleteObject(brush);
 }
 
+// An even border on a rounded box is stroked as one rounded rectangle so it
+// follows the corners; anything else is drawn side by side.
+static inline void ui2_win_draw_box_borders(HDC dc, const RECT *rect, unsigned int color,
+		double left_width, double top_width, double right_width, double bottom_width,
+		double radius) {
+	if (dc == NULL || rect == NULL) return;
+	if (radius <= 0.5 || left_width <= 0 || left_width != top_width
+		|| left_width != right_width || left_width != bottom_width) {
+		ui2_win_draw_borders(dc, rect, color, left_width, top_width, right_width, bottom_width);
+		return;
+	}
+	int width = (int)(left_width + 0.5);
+	if (width < 1) width = 1;
+	HPEN pen = CreatePen(PS_INSIDEFRAME, width, ui2_win_color(color));
+	if (pen == NULL) return;
+	HGDIOBJ old_pen = SelectObject(dc, pen);
+	HGDIOBJ old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
+	int diameter = (int)(radius * 2.0 + 0.5);
+	RoundRect(dc, rect->left, rect->top, rect->right, rect->bottom, diameter, diameter);
+	SelectObject(dc, old_brush);
+	SelectObject(dc, old_pen);
+	DeleteObject(pen);
+}
+
 static inline void ui2_win_paint_control_border(void *hwnd_ptr, unsigned int color,
 		double radius, double left, double top, double right, double bottom) {
 	HWND hwnd = (HWND)hwnd_ptr;
@@ -1421,7 +1445,7 @@ static inline void ui2_win_paint_control_border(void *hwnd_ptr, unsigned int col
 			diameter, diameter);
 		if (clip != NULL) SelectClipRgn(dc, clip);
 	}
-	ui2_win_draw_borders(dc, &rect, color, left, top, right, bottom);
+	ui2_win_draw_box_borders(dc, &rect, color, left, top, right, bottom, radius);
 	if (clip != NULL) {
 		SelectClipRgn(dc, NULL);
 		DeleteObject(clip);
@@ -1578,8 +1602,8 @@ static inline void ui2_win_paint_background_into_fx(void *hwnd_ptr, void *dc_ptr
 			diameter, diameter);
 		if (clip != NULL) SelectClipRgn(dc, clip);
 	}
-	ui2_win_draw_borders(dc, &rect, border_color, border_left, border_top,
-		border_right, border_bottom);
+	ui2_win_draw_box_borders(dc, &rect, border_color, border_left, border_top,
+		border_right, border_bottom, radius);
 	if (clip != NULL) {
 		SelectClipRgn(dc, NULL);
 		DeleteObject(clip);
@@ -1636,8 +1660,8 @@ static inline void ui2_win_paint_transparent_button(void *hwnd_ptr,
 				rect.bottom + 1, diameter, diameter);
 			if (clip != NULL) SelectClipRgn(dc, clip);
 		}
-		ui2_win_draw_borders(dc, &rect, border_color, border_left, border_top,
-			border_right, border_bottom);
+		ui2_win_draw_box_borders(dc, &rect, border_color, border_left, border_top,
+			border_right, border_bottom, radius);
 		if (clip != NULL) {
 			SelectClipRgn(dc, NULL);
 			DeleteObject(clip);

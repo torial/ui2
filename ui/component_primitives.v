@@ -119,13 +119,14 @@ pub fn component_inset(frame Rect, padding f64) !Rect {
 
 // component_text_width_estimate approximates how wide text renders. ui/ has no
 // backend-neutral measurement, so wide (CJK, emoji) runes count as one em and the
-// rest as a typical proportional glyph; callers add padding for the slack.
+// rest as a typical proportional glyph; callers add padding for the slack. The em
+// is the platform's: a point is 4/3 of a pixel on Windows and Linux.
 fn component_text_width_estimate(text string, font_size f64) f64 {
 	mut ems := 0.0
 	for r in text.runes() {
 		ems += if r >= 0x2e80 { 1.0 } else { 0.62 }
 	}
-	return ems * font_size
+	return ems * font_em_pixels(font_size)
 }
 
 fn component_local(frame Rect) Rect {

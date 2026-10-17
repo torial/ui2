@@ -266,8 +266,9 @@ fn native_accessibility_role(role string) macos.Id {
 		'progressbar' { macos.nsstring('AXProgressIndicator') }
 		// ui2's combobox is a select-only dropdown, which WebKit exposes as a pop-up.
 		'combobox' { macos.nsstring('AXPopUpButton') }
-		// A tab is a pressable choice among its siblings.
-		'tab' { macos.nsstring('AXRadioButton') }
+		// A tab is a pressable choice among its siblings, as a radio is.
+		'tab', 'radio' { macos.nsstring('AXRadioButton') }
+		'radiogroup' { macos.nsstring('AXRadioGroup') }
 		'list' { macos.nsstring('AXList') }
 		else { if role.starts_with('AX') { macos.nsstring(role) } else { objc_nil() } }
 	}

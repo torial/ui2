@@ -459,15 +459,28 @@ fn set_box_borders(view View, box BoxStyle) {
 	top := box_border_width(box.border_top, view_bounds.height)
 	right := box_border_width(box.border_right, view_bounds.width)
 	bottom := box_border_width(box.border_bottom, view_bounds.height)
-	if left <= 0 && top <= 0 && right <= 0 && bottom <= 0 {
+	rounded := box_rounded_border(box)
+	layer := macos.msg_id(view, 'layer')
+	if (left <= 0 && top <= 0 && right <= 0 && bottom <= 0) || rounded > 0 {
 		for side in ['left', 'top', 'right', 'bottom'] {
 			set_border_layer(view, side, Rect{}, box.border_color, false)
 		}
+	}
+	if left <= 0 && top <= 0 && right <= 0 && bottom <= 0 {
+		macos.msg_void_f64(layer, 'setBorderWidth:', 0)
 		return
 	}
 	if box.radius > 0 {
-		set_corner_radius(view, box.radius)
+		set_box_corners(view, box)
 	}
+	// An even border on a rounded box is the layer's own, which follows the
+	// corners; straight side layers would leave them bare.
+	if rounded > 0 {
+		macos.msg_void_f64(layer, 'setBorderWidth:', rounded)
+		macos.msg_void1(layer, 'setBorderColor:', macos.msg_id(ios.color(box.border_color), 'CGColor'))
+		return
+	}
+	macos.msg_void_f64(layer, 'setBorderWidth:', 0)
 	transaction := macos.Id(macos.get_class('CATransaction'))
 	macos.msg_void(transaction, 'begin')
 	macos.msg_void_bool(transaction, 'setDisableActions:', true)

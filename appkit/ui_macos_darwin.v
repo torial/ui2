@@ -1441,7 +1441,7 @@ fn native_update_element(native NativeView, el Element, declared_text_changed bo
 		.text_field {
 			native_update_text_field(native, element_rect(el.frame), el.placeholder, el.text,
 				el.box, el.text_style.color, el.text_style.size,
-				declared_text_changed, el.readonly, el.enabled)
+				declared_text_changed, el.readonly, el.enabled, el.text_style.align)
 		}
 		.text_area {
 			native_update_text_area(native, el, declared_text_changed, content_changed)
@@ -2609,11 +2609,11 @@ fn native_new_text_field(el Element) NativeView {
 	cls := if el.secure { 'NSSecureTextField' } else { 'NSTextField' }
 	field := macos.msg_id_rect(macos.alloc(cls), 'initWithFrame:', appkit_rect(frame))
 	native_update_text_field(field, frame, el.placeholder, el.text, el.box, el.text_style.color,
-		el.text_style.size, true, el.readonly, el.enabled)
+		el.text_style.size, true, el.readonly, el.enabled, el.text_style.align)
 	return field
 }
 
-fn native_update_text_field(field NativeView, frame NativeRect, placeholder string, text string, box BoxStyle, text_hex u32, size f64, declared_text_changed bool, readonly bool, enabled bool) {
+fn native_update_text_field(field NativeView, frame NativeRect, placeholder string, text string, box BoxStyle, text_hex u32, size f64, declared_text_changed bool, readonly bool, enabled bool, align Align) {
 	native_set_frame(field, frame)
 	// Unrelated refreshes preserve native edits. A changed declaration remains
 	// controlled and is applied explicitly.
@@ -2623,6 +2623,7 @@ fn native_update_text_field(field NativeView, frame NativeRect, placeholder stri
 	macos.msg_void1(field, 'setPlaceholderString:', macos.nsstring(placeholder))
 	macos.msg_void1(field, 'setTextColor:', native_color(text_hex))
 	macos.msg_void1(field, 'setFont:', native_font(size, false, false))
+	macos.msg_void_i64(field, 'setAlignment:', native_text_alignment(align_value(align)))
 	macos.msg_void_bool(field, 'setBordered:', true)
 	macos.msg_void_bool(field, 'setBezeled:', true)
 	macos.msg_void_u64(field, 'setBezelStyle:', 1)
@@ -2981,18 +2982,30 @@ fn native_set_box_borders(view NativeView, box BoxStyle) {
 	top := box_border_width(box.border_top, view_bounds.height)
 	right := box_border_width(box.border_right, view_bounds.width)
 	bottom := box_border_width(box.border_bottom, view_bounds.height)
-	if left <= 0 && top <= 0 && right <= 0 && bottom <= 0 {
+	rounded := box_rounded_border(box)
+	if (left <= 0 && top <= 0 && right <= 0 && bottom <= 0) || rounded > 0 {
 		for side in ['left', 'top', 'right', 'bottom'] {
 			native_set_border_layer(view, side, NativeRect{}, box.border_color, false)
 		}
+	}
+	if left <= 0 && top <= 0 && right <= 0 && bottom <= 0 {
+		macos.msg_void_f64(macos.msg_id(view, 'layer'), 'setBorderWidth:', 0)
 		return
 	}
 	macos.msg_void_bool(view, 'setWantsLayer:', true)
+	layer := macos.msg_id(view, 'layer')
 	if box.radius > 0 {
-		layer := macos.msg_id(view, 'layer')
 		macos.msg_void_f64(layer, 'setCornerRadius:', box.radius)
 		macos.msg_void_bool(layer, 'setMasksToBounds:', native_box_clips(box))
 	}
+	// An even border on a rounded box is the layer's own, which follows the
+	// corners; straight side layers would leave them bare.
+	if rounded > 0 {
+		macos.msg_void_f64(layer, 'setBorderWidth:', rounded)
+		macos.msg_void1(layer, 'setBorderColor:', macos.msg_id(native_color(box.border_color), 'CGColor'))
+		return
+	}
+	macos.msg_void_f64(layer, 'setBorderWidth:', 0)
 	transaction := macos.Id(macos.get_class('CATransaction'))
 	macos.msg_void(transaction, 'begin')
 	macos.msg_void_bool(transaction, 'setDisableActions:', true)
@@ -3226,12 +3239,32 @@ fn ui2_control_text_changed(_self voidptr, _cmd voidptr, notification voidptr) {
 @[export: 'ui2_control_do_command']
 fn ui2_control_do_command(_self voidptr, _cmd voidptr, control voidptr, _text_view voidptr, command voidptr) bool {
 	mut st := state()
-	if voidptr(st.key_handler) == unsafe { nil }
-		|| u64(control) !in st.control_change_ids {
+	if u64(control) !in st.control_change_ids {
 		return false
 	}
-	key := text_command_key(command, native_current_event_modifier_flags()) or { return false }
-	if key != 'tab' && key != 'shift+tab' {
+	modifiers := native_current_event_modifier_flags()
+	key := text_command_key(command, modifiers) or { return false }
+	// The field editor turns Backspace and Delete into commands before any key
+	// handler sees them, so on_key_event is offered the key here, and a handler
+	// that consumes it (moving back from an empty code cell, say) keeps the field
+	// from acting on it.
+	if key in ['backspace', 'forward_delete'] {
+		if voidptr(st.key_event_handler) == unsafe { nil } {
+			return false
+		}
+		st.key_consumed = false
+		st.key_event_handler(KeyEvent{
+			code:  if key == 'backspace' { KeyCode.backspace } else { KeyCode.delete }
+			shift: modifiers & 0x20000 != 0
+			ctrl:  modifiers & 0x40000 != 0
+			alt:   modifiers & 0x80000 != 0
+			cmd:   modifiers & 0x100000 != 0
+		})
+		consumed := st.key_consumed
+		st.key_consumed = false
+		return consumed
+	}
+	if voidptr(st.key_handler) == unsafe { nil } || (key != 'tab' && key != 'shift+tab') {
 		return false
 	}
 	st.key_consumed = false

@@ -3081,6 +3081,12 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn draw_box_borders(ctx &gg.Context, x f64, y f64, w f64, h f64, box BoxStyle) {
+		rounded := box_rounded_border(box)
+		if rounded > 0 {
+			draw_rounded_ring(ctx, x, y, w, h, box.radius, box_border_width(rounded, math.min(w,
+				h) / 2), box.border_color)
+			return
+		}
 		left := box_border_width(box.border_left, w)
 		top := box_border_width(box.border_top, h)
 		right := box_border_width(box.border_right, w)
@@ -3097,6 +3103,47 @@ fn page_focused_text_area(direction int) {
 		if bottom > 0 {
 			draw_rect(ctx, x, y + h - bottom, w, bottom, box.border_color, 0)
 		}
+	}
+
+	// rounded_outline lists points around a rounded rectangle, clockwise from the
+	// start of its top-left corner, with the same count whatever the radius so
+	// an outer and an inner outline pair up point for point.
+	fn rounded_outline(x f64, y f64, w f64, h f64, radius f64, segments int) [][]f64 {
+		r := math.max(0, math.min(radius, math.min(w, h) / 2))
+		centers := [[x + r, y + r], [x + w - r, y + r], [x + w - r, y + h - r], [x + r, y + h - r]]
+		mut points := [][]f64{cap: 4 * (segments + 1)}
+		for corner, center in centers {
+			start := math.pi * (1.0 + 0.5 * f64(corner))
+			for i in 0 .. segments + 1 {
+				angle := start + math.pi / 2 * f64(i) / f64(segments)
+				points << [center[0] + r * math.cos(angle), center[1] + r * math.sin(angle)]
+			}
+		}
+		return points
+	}
+
+	// draw_rounded_ring draws an even border that follows a box's rounded
+	// corners: the band between its outline and the outline `width` inside it.
+	fn draw_rounded_ring(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, width f64, color_hex u32) {
+		if width <= 0 || w <= 0 || h <= 0 {
+			return
+		}
+		segments := int(math.max(4, math.min(16, radius / 2)))
+		outer := rounded_outline(x, y, w, h, radius, segments)
+		inner := rounded_outline(x + width, y + width, w - 2 * width, h - 2 * width, radius - width,
+			segments)
+		c := hex_color(color_hex)
+		scale := f64(ctx.scale)
+		sgl.load_pipeline(ctx.pipeline.alpha)
+		sgl.c4b(c.r, c.g, c.b, c.a)
+		sgl.begin_triangle_strip()
+		for i in 0 .. outer.len + 1 {
+			o := outer[i % outer.len]
+			n := inner[i % inner.len]
+			sgl.v2f(f32(o[0] * scale), f32(o[1] * scale))
+			sgl.v2f(f32(n[0] * scale), f32(n[1] * scale))
+		}
+		sgl.end()
 	}
 
 	fn draw_control_surface(ctx &gg.Context, x f64, y f64, w f64, h f64, box BoxStyle, focused bool, enabled bool) {

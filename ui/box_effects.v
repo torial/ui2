@@ -175,3 +175,14 @@ fn gradient_position(line GradientLine, x f64, y f64) f64 {
 	}
 	return unit_clamp(((x - line.x0) * lx + (y - line.y0) * ly) / length2)
 }
+
+// box_rounded_border is the width of a box's border when it should follow the
+// box's rounded corners: a radius and the same width on all four sides. Square
+// boxes and uneven borders return 0 and keep their straight sides.
+fn box_rounded_border(box BoxStyle) f64 {
+	if box.radius <= 0 || box.border_left <= 0 || box.border_left != box.border_top
+		|| box.border_left != box.border_right || box.border_left != box.border_bottom {
+		return 0
+	}
+	return box.border_left
+}

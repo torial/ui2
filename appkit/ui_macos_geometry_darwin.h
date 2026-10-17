@@ -1,5 +1,6 @@
 #include <objc/message.h>
 #include <objc/runtime.h>
+#include <dlfcn.h>
 
 // A message that takes a rectangle and answers one, which vlib's macos bridge has no
 // entry for: -[NSCell titleRectForBounds:] is how a control says where its title is
@@ -65,11 +66,13 @@ static inline void ui2_macos_msg_void_float(void* obj, void* sel, float value) {
 	((void (*)(void*, void*, float))objc_msgSend)(obj, sel, value);
 }
 
-// Declared here rather than through CoreGraphics' headers, which tcc cannot read.
-// CGRect is four CGFloats, laid out like ui2_macos_rect.
-extern void* CGPathCreateWithRoundedRect(ui2_macos_rect rect, double corner_width,
+// CoreGraphics' path functions are looked up at run time: tcc cannot read the
+// CoreGraphics headers, and declaring the functions here would clash with those
+// headers wherever an application includes them. CGRect is four CGFloats, laid
+// out like ui2_macos_rect.
+typedef void* (*ui2_macos_rounded_path_fn)(ui2_macos_rect rect, double corner_width,
 	double corner_height, const void* transform);
-extern void CGPathRelease(void* path);
+typedef void (*ui2_macos_release_path_fn)(void* path);
 
 // Gives a layer the rounded-rectangle shadow path of a box, so CoreAnimation draws
 // the shadow from that shape instead of from the layer's rendered content, which a
@@ -84,8 +87,15 @@ static inline void ui2_macos_set_shadow_path(void* layer, double x, double y, do
 	}
 	double limit = (width < height ? width : height) / 2;
 	double r = radius < 0 ? 0 : (radius > limit ? limit : radius);
+	static ui2_macos_rounded_path_fn create = (void*)0;
+	static ui2_macos_release_path_fn release = (void*)0;
+	if (create == (void*)0) {
+		create = (ui2_macos_rounded_path_fn)dlsym(RTLD_DEFAULT, "CGPathCreateWithRoundedRect");
+		release = (ui2_macos_release_path_fn)dlsym(RTLD_DEFAULT, "CGPathRelease");
+	}
+	if (create == (void*)0 || release == (void*)0) return;
 	ui2_macos_rect rect = { x, y, width, height };
-	void* path = CGPathCreateWithRoundedRect(rect, r, r, (void*)0);
+	void* path = create(rect, r, r, (void*)0);
 	((void (*)(void*, void*, void*))objc_msgSend)(layer, set, path);
-	CGPathRelease(path);
+	release(path);
 }
