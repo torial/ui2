@@ -1048,6 +1048,10 @@ fn handle_key(event ui2.KeyEvent) {
 ui2.on_key_event(handle_key)
 ```
 
+Pointer events do not carry modifier keys; `ui2.key_modifiers()` reports the
+ones held right now (`shift`, `ctrl`, `alt`, and `cmd` for Command or the
+Windows key), so a click handler can tell a Shift- or Cmd-click apart.
+
 The existing `on_key` callback remains available for normalized strings such as
 `cmd+n` and `up`. On AppKit those strings are now also derived from physical key
 codes for known keys, so command shortcuts are independent of the input source.

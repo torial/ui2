@@ -174,6 +174,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_scroll_offsets = map[string]f64{}
 	__global g_scroll_content_h = map[string]f64{}
 	__global g_hit_targets = []HitTarget{}
+	// The modifier keys of the last event sokol delivered, for key_modifiers on
+	// platforms with no other way to ask.
+	__global g_key_modifiers = KeyModifiers{}
 
 	// HoverRegion is the visible part of an element drawn this frame and the
 	// hoverable elements it belongs to, from the outermost in. The last region
@@ -755,6 +758,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn on_event(e &gg.Event, _ &GgApp) {
+		g_key_modifiers = KeyModifiers{
+			shift: e.modifiers & u32(gg.Modifier.shift) != 0
+			ctrl: e.modifiers & u32(gg.Modifier.ctrl) != 0
+			alt: e.modifiers & u32(gg.Modifier.alt) != 0
+			cmd: e.modifiers & u32(gg.Modifier.super) != 0
+		}
 		match e.typ {
 			.mouse_down {
 				g_tooltip.dismiss()
@@ -2245,7 +2254,9 @@ fn page_focused_text_area(direction int) {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				frame := rect(x, y, el.frame.width, el.frame.height)
-				draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
+				if box_draws_fill(el.box) {
+					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
+				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				// An axis the mode leaves out has no content to cover, and so no range.
 				scrolls_x := el.scroll_mode != .vertical_only
