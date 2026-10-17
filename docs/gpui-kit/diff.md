@@ -338,9 +338,6 @@ the native role.
 
 ## Platform notes
 
-- AppKit draws an italic or underlined label through an attributed string that
-  drops `align`, so file summaries are centered by measuring them rather than
-  with `align: .center`.
 - The custom renderer shows scrollers while content overflows; each code
   column's horizontal scroller therefore sits in the gap below its file,
   never over code. AppKit's overlay scrollers appear while scrolling.

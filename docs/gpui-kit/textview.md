@@ -309,8 +309,6 @@ dropped, entities are decoded and whitespace collapses outside `pre`.
 
 ## Notes
 
-- Text in the custom renderer: `***both***` draws bold but not italic there,
-  while AppKit draws bold italic; the layout asks for both.
 - The task list check box is drawn, not a control; its accessibility role is
   `checkbox` with a checked/unchecked value.
 - Accessibility: the view is a `group`, links have the `link` role and their

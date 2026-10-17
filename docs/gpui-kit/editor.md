@@ -404,51 +404,32 @@ positions in the editor's coordinates with nothing scrolled.
 | Fonts (`mono_font_family`), sizes, `bordered`, `readonly`, `disabled`, `aria_label` | Implemented (`font_family`, `size`, `bordered`, `read_only`, `disabled`, `label`). |
 | `scroll_bounce`, `show_whitespaces`, custom context menu, paste handler | Omitted: scrolling and the context menu are the backend's; whitespace markers would need per-glyph drawing. |
 
-## Backend gaps the editor works around (requested changes)
+## Platform notes
 
-These are in shared files the editor may not change; the editor works without
-them, with the limits noted.
-
-1. **AppKit wipes run colors on refresh.** `native_update_text_area` calls
-   `setFont:` and `setTextColor:` on every update, which restyle every
-   character, and the runs are only re-applied when they change. A rich text
-   area therefore loses its syntax colors at the first rebuild that does not
-   change its runs (the backgrounds and underlines survive). Skipping those two
-   calls when `el.text_runs.len > 0` fixes it; verified with a local patch.
-2. **AppKit replaces the whole attributed string** for every run change
-   (`textStorage setAttributedString:`) and applies effects run by run with a
-   selection change each. Setting attributes in place
-   (`beginEditing`/`setAttributes:range:`/`endEditing`) would keep undo
-   grouping and input-method composition intact while recoloring on every
-   keystroke, and be cheaper for files with thousands of runs.
-3. **No selection-change event.** Neither backend reports caret moves; the
-   gallery polls. An event (AppKit `textViewDidChangeSelection:`) or a reported
-   selection would remove the poll.
-4. **No text-area geometry.** ui2 does not report a text area's line height,
-   caret rectangle or the rectangle of a range, so the editor reproduces each
-   backend's layout (`code_editor_metrics`). `text_area_rect_for_range(id,
-   location, length)` and `text_area_line_height(id)` would make overlays exact
-   for any font; Windows' EDIT metrics are estimated.
-5. **Tab width.** AppKit uses NSParagraphStyle's 28 pt stops and the custom
-   renderer draws a tab about one space wide, so tab-indented code is shallow
-   there. A text-area tab width (in spaces) honored by both would let
-   `tab_size` mean the same everywhere.
-6. **Custom renderer text area.** It draws no caret (the editor draws one), a
-   click puts the caret at the end of the text and there is no pointer
-   selection, its box background and outline are painted whatever `box` says
-   (the editor covers the outline), its selection color is a fixed light blue
-   (poor in dark themes), `text_area_caret` returns the moving end of a
-   selection where AppKit returns its start, and `set_text`,
-   `text_area_set_selection`, `insert_text_area_text` and `focus` are ignored
-   when called from an `after` callback.
-7. **Custom renderer scrolls add 16 points** below their content, which AppKit
-   does not; the editor leaves that room out of its content height.
-8. **AppKit hit-testing.** A plain view laid over a text view takes its clicks,
-   which is why the editor's marks lie beneath the text on AppKit. Passing hits
-   through non-interactive views would let the marks lie on top everywhere.
-9. **Windows and iOS** draw text-area runs plain (no highlighting), and the
-   Windows EDIT control is opaque, so the current-line tint and indent guides
-   beneath it do not show there.
+- **Runs are rewritten whole.** AppKit replaces a rich text area's attributed
+  string when its runs change, which costs undo grouping and input-method
+  composition while recoloring on every keystroke.
+- **No selection-change event.** Neither backend reports caret moves; the
+  gallery polls.
+- **No text-area geometry.** ui2 does not report a text area's line height,
+  caret rectangle or the rectangle of a range, so the editor reproduces each
+  backend's layout (`code_editor_metrics`); Windows' EDIT metrics are
+  estimated.
+- **Tabs** stop every 28 points on AppKit and in the custom renderer, so
+  `tab_size` sets the editor's own indentation, not how wide a tab draws.
+- **Custom renderer text area.** It draws no caret (the editor draws one), a
+  click puts the caret at the end of the text and there is no pointer
+  selection, it paints its box background and outline whatever `box` says,
+  `text_area_caret` returns the moving end of a selection where AppKit returns
+  its start, and `set_text`, `text_area_set_selection`, `insert_text_area_text`
+  and `focus` are ignored when called from an `after` callback.
+- **Custom renderer scrolls add 16 points** below their content, which AppKit
+  does not; the editor leaves that room out of its content height.
+- **AppKit hit-testing.** A plain view laid over a text view takes its clicks,
+  which is why the editor's marks lie beneath the text on AppKit.
+- **Windows and iOS** draw text-area runs plain (no highlighting), and the
+  Windows EDIT control is opaque, so the current-line tint and indent guides
+  beneath it do not show there.
 
 ## Attribution
 
