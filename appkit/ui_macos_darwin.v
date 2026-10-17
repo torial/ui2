@@ -2415,7 +2415,22 @@ fn native_place_label_text(label_view NativeView, frame NativeRect, lines int, v
 	} else {
 		frame
 	})
-	native_apply_label_valign(label_view, frame, lines, valign, boxed)
+	mut drawn_lines := lines
+	if lines != 1 && native_label_fits_one_line(label_view, frame) {
+		// Text that may wrap but needs one line at this width is drawn as one line.
+		// Left to wrap, a centered field barely wider than its text drew it twice,
+		// at two letter spacings, as if laid out once wrapped and once not.
+		native_apply_line_limit(label_view, 1)
+		macos.msg_void_i64(label_view, 'setMaximumNumberOfLines:', 1)
+		drawn_lines = 1
+	}
+	native_apply_label_valign(label_view, frame, drawn_lines, valign, boxed)
+}
+
+fn native_label_fits_one_line(label_view NativeView, frame NativeRect) bool {
+	wrapped := native_label_content_height(label_view, frame, 0)
+	single := native_label_content_height(label_view, frame, 1)
+	return wrapped > 0 && single > 0 && wrapped <= single + 0.5
 }
 
 // A text field draws its content from the top of its frame however tall that frame

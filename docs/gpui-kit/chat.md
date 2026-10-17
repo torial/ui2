@@ -340,8 +340,3 @@ Omitted, and why:
 
 - Emoji draw in color on AppKit and UIKit and as monochrome outlines in the
   label color in the custom renderer (Noto Emoji), as everywhere in ui2.
-- On AppKit a centered label that may wrap (`lines` 0 or above 1) draws its
-  text twice, at two letter spacings, when its frame is only slightly wider
-  than the text (a 13-point line about 212 wide in a 220 or 228 frame; 236 is
-  fine). The chat components give single-line text a one-line budget, which
-  avoids it; the bug is in the AppKit backend.
