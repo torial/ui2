@@ -591,11 +591,14 @@ pub fn tab_bar(config TabBarConfig) !Element {
 			} else {
 				ScrollMode.vertical_only
 			}, contents)
-			box: BoxStyle{
+			box:            BoxStyle{
 				bg:          fill
 				transparent: true
 			}
-			key: 'strip'
+			// The strip scrolls by wheel, drag and reveal, without a scroller over
+			// the tabs, as in GPUI Kit.
+			disable_scroll: true
+			key:            'strip'
 		}
 	} else {
 		children << tab_bar_slot(layout.strip, contents, 'strip')
