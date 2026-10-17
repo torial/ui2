@@ -2,6 +2,13 @@
 @[has_globals]
 module ui2
 
+// Every backend reports hover changes through hover_transitions, so this part
+// runs natively too (and keeps the file from being empty there).
+fn test_hover_transitions_report_nothing_for_an_unchanged_chain() {
+	left, entered := hover_transitions(['list', 'row:1'], ['list', 'row:1'])
+	assert left.len == 0 && entered.len == 0
+}
+
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	struct HoverLog {
 	mut:
