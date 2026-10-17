@@ -3231,11 +3231,12 @@ fn native_set_gradient_layer(view NativeView, layer macos.Id, box BoxStyle, opac
 	line := gradient_line(box.gradient.angle, layer_bounds.width, layer_bounds.height)
 	w := if layer_bounds.width > 0 { layer_bounds.width } else { 1.0 }
 	h := if layer_bounds.height > 0 { layer_bounds.height } else { 1.0 }
+	sx, sy, ex, ey := gradient_unit_points(line, w, h)
 	flipped := macos.msg_bool(view, 'isFlipped')
-	y0 := if flipped { line.y0 / h } else { 1 - line.y0 / h }
-	y1 := if flipped { line.y1 / h } else { 1 - line.y1 / h }
-	macos.msg_void_point(gradient, 'setStartPoint:', macos.point(line.x0 / w, y0))
-	macos.msg_void_point(gradient, 'setEndPoint:', macos.point(line.x1 / w, y1))
+	y0 := if flipped { sy } else { 1 - sy }
+	y1 := if flipped { ey } else { 1 - ey }
+	macos.msg_void_point(gradient, 'setStartPoint:', macos.point(sx, y0))
+	macos.msg_void_point(gradient, 'setEndPoint:', macos.point(ex, y1))
 	macos.msg_void_bool(gradient, 'setHidden:', false)
 }
 

@@ -416,8 +416,9 @@ fn set_gradient_layer(view View, layer macos.Id, box BoxStyle, opacity f64) {
 	line := gradient_line(box.gradient.angle, bounds.width, bounds.height)
 	w := if bounds.width > 0 { bounds.width } else { 1.0 }
 	h := if bounds.height > 0 { bounds.height } else { 1.0 }
-	macos.msg_void_point(gradient, 'setStartPoint:', macos.point(line.x0 / w, line.y0 / h))
-	macos.msg_void_point(gradient, 'setEndPoint:', macos.point(line.x1 / w, line.y1 / h))
+	sx, sy, ex, ey := gradient_unit_points(line, w, h)
+	macos.msg_void_point(gradient, 'setStartPoint:', macos.point(sx, sy))
+	macos.msg_void_point(gradient, 'setEndPoint:', macos.point(ex, ey))
 	macos.msg_void_bool(gradient, 'setHidden:', false)
 }
 
