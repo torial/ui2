@@ -2230,6 +2230,9 @@ fn page_focused_text_area(direction int) {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, el.box)
+				// A shape is content: above the fill, beneath the borders, as the
+				// native backends layer it.
+				draw_shape(ctx, el, x, y, clip)
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				if el.enabled && element_action_id(el).len > 0
 					&& (el.clickable || el.button_behavior || el.draggable || el.long_press

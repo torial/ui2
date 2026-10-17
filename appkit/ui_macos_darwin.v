@@ -37,6 +37,8 @@ fn C.ui2_macos_msg_void_float(obj voidptr, sel voidptr, value f32)
 
 fn C.ui2_macos_set_shadow_path(layer voidptr, x f64, y f64, width f64, height f64, radius f64)
 
+fn C.ui2_macos_set_shape_path(layer voidptr, commands &f64, count int)
+
 const ns_window_style_titled = u64(1)
 const ns_window_style_closable = u64(2)
 const ns_window_style_miniaturizable = u64(4)
@@ -1190,6 +1192,9 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 			el.box
 		}
 		native_set_box_borders(native, border_box)
+		if el.kind == .view {
+			native_set_view_shape(native, el)
+		}
 	}
 
 	match el.kind {
@@ -2069,6 +2074,82 @@ fn native_invalidate_cursor_rects(view NativeView) {
 
 fn native_new_object(class_name string) NativeView {
 	return macos.msg_id(macos.alloc(class_name), 'init')
+}
+
+// native_set_view_shape draws a view's path (see `shape`) with a CAShapeLayer
+// beneath its children, above a gradient fill, and takes the layer away again
+// when the view stops drawing one.
+fn native_set_view_shape(view NativeView, el Element) {
+	key := voidptr(macos.sel('ui2_shape_assoc'))
+	mut layer := NativeView(macos.get_associated_object(view, key))
+	if !element_has_shape(el) {
+		if !native_is_nil(layer) {
+			macos.msg_void(layer, 'removeFromSuperlayer')
+			native_set_associated_object(view, key, NativeView(objc_nil()))
+		}
+		return
+	}
+	macos.msg_void_bool(view, 'setWantsLayer:', true)
+	parent := macos.msg_id(view, 'layer')
+	if native_is_nil(layer) {
+		layer = macos.msg_id(macos.alloc('CAShapeLayer'), 'init')
+		native_set_associated_object(view, key, layer)
+		macos.release(layer)
+		macos.msg_void_f64(layer, 'setZPosition:', -999)
+	}
+	if macos.msg_id(layer, 'superlayer') != parent {
+		macos.msg_void1(parent, 'addSublayer:', layer)
+	}
+	transaction := macos.Id(macos.get_class('CATransaction'))
+	macos.msg_void(transaction, 'begin')
+	macos.msg_void_bool(transaction, 'setDisableActions:', true)
+	macos.msg_void_rect(layer, 'setFrame:', macos.msg_rect(view, 'bounds'))
+	mut commands := []f64{cap: el.path.len * 7}
+	for cmd in el.path {
+		commands << f64(int(cmd.verb))
+		commands << cmd.x
+		commands << cmd.y
+		commands << cmd.cx1
+		commands << cmd.cy1
+		commands << cmd.cx2
+		commands << cmd.cy2
+	}
+	C.ui2_macos_set_shape_path(layer, commands.data, el.path.len)
+	style := el.shape_style
+	fill := if hex := style.fill {
+		native_cg_color(hex, style.fill_opacity)
+	} else {
+		objc_nil()
+	}
+	macos.msg_void1(layer, 'setFillColor:', fill)
+	stroke := if hex := style.stroke {
+		native_cg_color(hex, if style.stroke_width > 0 { style.stroke_opacity } else { 0.0 })
+	} else {
+		objc_nil()
+	}
+	macos.msg_void1(layer, 'setStrokeColor:', stroke)
+	macos.msg_void_f64(layer, 'setLineWidth:', style.stroke_width)
+	macos.msg_void1(layer, 'setLineJoin:', macos.nsstring(match style.line_join {
+		.round { 'round' }
+		.miter { 'miter' }
+		.bevel { 'bevel' }
+	}))
+	macos.msg_void1(layer, 'setLineCap:', macos.nsstring(match style.line_cap {
+		.round { 'round' }
+		.butt { 'butt' }
+		.square { 'square' }
+	}))
+	macos.msg_void1(layer, 'setFillRule:', macos.nsstring(if style.fill_rule == .even_odd {
+		'even-odd'
+	} else {
+		'non-zero'
+	}))
+	macos.msg_void(transaction, 'commit')
+}
+
+fn native_cg_color(hex u32, opacity f64) macos.Id {
+	color := macos.msg_id_f64(native_color(hex), 'colorWithAlphaComponent:', unit_clamp(opacity))
+	return macos.msg_id(color, 'CGColor')
 }
 
 fn native_set_associated_object(obj NativeView, key voidptr, value NativeView) {

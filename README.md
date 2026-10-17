@@ -1003,6 +1003,36 @@ ui2.label('', 'Save changes', ui2.rect(x, y, w, 20), style)
 Measuring needs a running window. Before one starts, and in tests, both
 estimate from the character count, and `text_measurement_exact()` is false.
 
+## Shapes
+
+`shape(id, frame, path, style)` draws a vector path inside a frame: lines,
+curves, areas, slices and outlines, antialiased on every backend (a
+CAShapeLayer on AppKit and UIKit, GDI+ on Windows, multisampled triangles in
+the custom renderer). Path coordinates are local to the frame, and the shape is
+a view, so it can hold children drawn above it.
+
+```v
+mut area := ui2.path_smooth(points) // a curve through the points, no overshoot
+area << ui2.path_line_to(width, height)
+area << ui2.path_line_to(0, height)
+area << ui2.path_close()
+ui2.shape('revenue', ui2.rect(0, 0, width, height), area, ui2.ShapeStyle{
+	fill:         u32(0x3b82f6)
+	fill_opacity: 0.25
+	stroke:       u32(0x2563eb)
+	stroke_width: 2
+})
+```
+
+Paths are lists of `path_move_to`, `path_line_to`, `path_quad_to`,
+`path_cubic_to` and `path_close`; `path_polyline`, `path_rect`,
+`path_rounded_rect`, `path_ellipse`, `path_circle`, `path_arc`,
+`path_sector` (a pie slice) and `path_annular_sector` (a doughnut slice) build
+common ones. `ShapeStyle` takes an optional fill and stroke with their
+opacities, the stroke width, `line_join`, `line_cap` and `fill_rule`
+(`.nonzero` or `.even_odd`, for holes). Angles are in radians from the
+positive x axis, growing clockwise on screen. See `examples/shapes`.
+
 ## Charts
 
 `ui2.chart` creates line, grouped bar, scatter, pie, and doughnut charts. Its
