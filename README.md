@@ -577,6 +577,44 @@ MessageBox {
 }
 ```
 
+## Timers
+
+`after` runs a callback on the UI thread once a delay has passed and then
+rebuilds the window, so a notification can dismiss itself or a search can
+debounce without the application owning a thread:
+
+```v
+toast := ui2.after(4, fn [mut app] () {
+	app.toast_visible = false
+})
+ui2.cancel_timer(toast) // call it off, e.g. when the user dismisses it first
+```
+
+Callbacks run where widget animation callbacks do, between building the
+declared tree and rendering it, and a refresh is requested so whatever they
+change is drawn next. `timer_pending(id)` reports whether a callback has yet to
+run. A negative or non-finite delay runs at the next build.
+
+## Clipboard
+
+`set_clipboard_text` replaces the system clipboard with plain text and
+`clipboard_text` reads it back (`none` when it holds no text). Text fields
+keep their own copy and paste; these are for copying anything else, such as
+the contents of a code block.
+
+```v
+if !ui2.set_clipboard_text(token) {
+	// no clipboard this platform can reach
+}
+pasted := ui2.clipboard_text() or { '' }
+```
+
+macOS uses `NSPasteboard`, iOS `UIPasteboard` and Windows the Win32 clipboard,
+for native and custom-rendered windows alike. Linux drives `wl-copy`/`wl-paste`
+under Wayland, or `xclip` or `xsel` under X11, so one of them has to be
+installed; Android has no clipboard this layer can reach. Check
+`clipboard_supported()` before offering a copy action.
+
 ## File and folder dialogs
 
 `open_file_dialog`, `save_file_dialog`, and `open_folder_dialog` show the
