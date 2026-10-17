@@ -112,6 +112,7 @@ pub fn run(build_screen BuildFn, event_handler EventFn) {
 	g_build_screen = build_screen
 	g_event_handler = event_handler
 	configure_animation_driver(request_refresh, true)
+	configure_text_measurer(ios_measure_text_width)
 	ensure_runtime_classes()
 	pool := macos.autorelease_pool_new()
 	defer {
@@ -337,6 +338,18 @@ fn font(size f64, bold bool) macos.Id {
 		return macos.msg_id_f64(macos.get_class('UIFont'), 'boldSystemFontOfSize:', size)
 	}
 	return macos.msg_id_f64(macos.get_class('UIFont'), 'systemFontOfSize:', size)
+}
+
+// ios_measure_text_width measures text in the font labels are given; a UILabel
+// draws its text with no inset.
+fn ios_measure_text_width(text string, style TextStyle) f64 {
+	attrs := macos.msg_id2(macos.get_class('NSDictionary'), 'dictionaryWithObject:forKey:',
+		font(style.size, style.bold), macos.nsstring('NSFont'))
+	attributed := macos.msg_id2(macos.alloc('NSAttributedString'), 'initWithString:attributes:',
+		macos.nsstring(text), attrs)
+	width := macos.msg_point(attributed, 'size').x
+	macos.release(attributed)
+	return width
 }
 
 // set_box_background paints what a BoxStyle puts beneath its borders: the solid

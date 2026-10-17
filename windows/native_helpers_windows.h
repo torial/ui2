@@ -1265,6 +1265,25 @@ static inline void *ui2_win_create_font(void *hwnd, double point_size,
 	return replacement;
 }
 
+// Measures one line of text in the font a label with this style is given, so
+// layout can size a label to its text.
+static inline double ui2_win_measure_text(void *hwnd, double point_size,
+		const wchar_t *family, int bold, int italic, const wchar_t *text) {
+	HFONT font = (HFONT)ui2_win_create_font(hwnd, point_size, family, bold, italic, 0, 0, text);
+	HDC dc = GetDC((HWND)hwnd);
+	if (dc == NULL) {
+		if (font != NULL) DeleteObject(font);
+		return 0;
+	}
+	HGDIOBJ previous = font != NULL ? SelectObject(dc, font) : NULL;
+	SIZE size = { 0, 0 };
+	GetTextExtentPoint32W(dc, text, (int)wcslen(text), &size);
+	if (previous != NULL) SelectObject(dc, previous);
+	ReleaseDC((HWND)hwnd, dc);
+	if (font != NULL) DeleteObject(font);
+	return (double)size.cx;
+}
+
 // Reports how many characters of `text` the font cannot draw, so tests can
 // assert that a control ended up with a font that covers its text.
 static inline int ui2_win_font_missing_glyphs(void *font, const wchar_t *text) {

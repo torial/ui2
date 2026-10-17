@@ -93,6 +93,7 @@ mut:
 	root_view           NativeView
 	button_handler      NativeView
 	app_delegate        NativeView
+	measure_label       NativeView // off-screen label measure_text_width asks
 	views               map[string]NativeView
 	view_keys           map[string]string
 	view_kinds          map[string]Kind
@@ -224,6 +225,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	st.build_screen = build_fn
 	st.event_handler = event_fn
 	configure_animation_driver(request_refresh, true)
+	configure_text_measurer(native_measure_text_width)
 	st.run_config = RunConfig{
 		title: title
 		width: width
@@ -2254,6 +2256,32 @@ fn native_update_label(view NativeView, frame NativeRect, text string, text_hex 
 		0
 	}))
 	native_place_label_text(label_view, frame, lines, valign, boxed)
+}
+
+// native_measure_text_width asks an off-screen label, set up as native_update_label
+// sets labels up, for the size of its cell: the text's width plus the inset an
+// NSTextField draws it with.
+fn native_measure_text_width(text string, style TextStyle) f64 {
+	mut st := state()
+	if native_is_nil(st.measure_label) {
+		st.measure_label = macos.msg_id_rect(macos.alloc('NSTextField'), 'initWithFrame:',
+			appkit_rect(native_rect(0, 0, 100, 20)))
+		macos.msg_void_bool(st.measure_label, 'setEditable:', false)
+		macos.msg_void_bool(st.measure_label, 'setSelectable:', false)
+		macos.msg_void_bool(st.measure_label, 'setBordered:', false)
+		macos.msg_void_bool(st.measure_label, 'setBezeled:', false)
+		macos.msg_void_bool(st.measure_label, 'setDrawsBackground:', false)
+		native_apply_line_limit(st.measure_label, 1)
+	}
+	field := st.measure_label
+	macos.msg_void1(field, 'setFont:', native_text_style_font(TextStyle{
+		size:        style.size
+		font_family: style.font_family
+		bold:        style.bold
+		italic:      style.italic
+	}))
+	macos.msg_void1(field, 'setStringValue:', macos.nsstring(text))
+	return macos.msg_point(macos.msg_id(field, 'cell'), 'cellSize').x
 }
 
 // Put the text field back over the whole area the label was laid out with, then move

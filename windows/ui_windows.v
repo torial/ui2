@@ -140,6 +140,8 @@ fn C.ui2_win_combo_select_text(hwnd voidptr, text &u16)
 
 fn C.ui2_win_create_font(hwnd voidptr, point_size f64, family &u16, bold int, italic int, underline int, strikeout int, text &u16) voidptr
 
+fn C.ui2_win_measure_text(hwnd voidptr, point_size f64, family &u16, bold int, italic int, text &u16) f64
+
 fn C.ui2_win_apply_text_font(hwnd voidptr, text &u16)
 
 fn C.ui2_win_font_missing_glyphs(font voidptr, text &u16) int
@@ -653,6 +655,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	st.build_screen = build_fn
 	st.event_handler = event_fn
 	configure_animation_driver(request_refresh, true)
+	configure_text_measurer(windows_measure_text_width)
 	st.run_config = WindowsRunConfig{
 		title: title
 		width: width
@@ -1454,6 +1457,19 @@ fn windows_update_tooltip(key string, hwnd voidptr, text_hwnd voidptr, tooltip s
 		st.tooltips[key] = native_tooltip
 		st.tooltip_sigs[key] = tooltip
 	}
+}
+
+// windows_measure_text_width measures text in the font windows_apply_font would
+// give a label with this style; a static control draws its text with no inset.
+fn windows_measure_text_width(text string, style TextStyle) f64 {
+	st := windows_state()
+	wide_family := windows_font_family(style.font_family).to_wide()
+	wide_text := text.to_wide()
+	width := C.ui2_win_measure_text(st.root, style.size, wide_family, windows_bool(style.bold),
+		windows_bool(style.italic), wide_text)
+	unsafe { free(wide_family) }
+	unsafe { free(wide_text) }
+	return width
 }
 
 // GDI has no face called `monospace` and would substitute a proportional one,

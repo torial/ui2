@@ -985,6 +985,24 @@ which is no better.
 UI2_FONT_SYMBOLS=/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf ./treeview
 ```
 
+### Measuring text
+
+`measure_text_width(text, style)` is how wide a label must be to show `text`
+on one line in `style`, measured by the backend that draws it: AppKit and
+UIKit with the label's own font, Win32 with GDI, the custom renderer with
+fontstash. It includes the inset a backend's labels put around their text, so
+a label that wide is not cut short, and widths are cached, so a build may
+measure the same words every frame. `wrap_text_to_width(text, style, width)`
+breaks text into the lines a label that wide shows.
+
+```v
+w := ui2.measure_text_width('Save changes', style)
+ui2.label('', 'Save changes', ui2.rect(x, y, w, 20), style)
+```
+
+Measuring needs a running window. Before one starts, and in tests, both
+estimate from the character count, and `text_measurement_exact()` is false.
+
 ## Charts
 
 `ui2.chart` creates line, grouped bar, scatter, pie, and doughnut charts. Its

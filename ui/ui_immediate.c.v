@@ -674,6 +674,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// ── Frame & event loop ─────────────────────────────────────────────
 
 	fn on_init(_ &GgApp) {
+		// Text can be measured from here on; builds before this estimate.
+		configure_text_measurer(custom_measure_text_width)
 		if voidptr(g_build_screen) == unsafe { nil } {
 			return
 		}
@@ -3622,6 +3624,24 @@ fn page_focused_text_area(direction int) {
 		from := clamp_int(start, 0, runes.len)
 		to := clamp_int(end, from, runes.len)
 		return runes[..from].string(), runes[from..to].string()
+	}
+
+	// custom_measure_text_width measures with the font and size draw_text_in_box
+	// draws in; a label draws its text with no inset.
+	fn custom_measure_text_width(text string, style TextStyle) f64 {
+		ctx := g_gg_app.ctx
+		if ctx == unsafe { nil } {
+			return text_width_estimate(text, style)
+		}
+		family := text_font_file(style.font_family, style.bold, style.italic)
+		ensure_family_fallbacks(ctx, family)
+		ctx.set_text_cfg(gg.TextCfg{
+			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+			bold: style.bold
+			italic: style.italic
+			family: family
+		})
+		return f64(ctx.text_width_f(text))
 	}
 
 	// clip is the region the caller is drawn under, and is what a block of text too
