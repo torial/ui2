@@ -117,7 +117,6 @@ pub fn message_scroller(config MessageScrollerConfig) !Element {
 		return error('message scroller inset must be finite and non-negative')
 	}
 	s := config.state
-	theme := config.theme
 	viewport := component_local(config.frame)
 	mut children := []Element{}
 	if s.layout.count == 0 {

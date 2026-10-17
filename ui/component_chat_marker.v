@@ -295,7 +295,7 @@ pub fn marker(config MarkerConfig) !Element {
 	// an icon or an action it keeps to them; alone it shares the spare room out
 	// as the alignment says, so a separator's label stays centered between its
 	// lines. Wrapped lines follow the alignment.
-	text_align := if layout.lines == 1 && (layout.icon.width > 0 || layout.action.width > 0) {
+	label_align := if layout.lines == 1 && (layout.icon.width > 0 || layout.action.width > 0) {
 		Align.left
 	} else {
 		match alignment {
@@ -315,7 +315,7 @@ pub fn marker(config MarkerConfig) !Element {
 				color:         text_color
 				font_size:     font
 				bold:          config.bold
-				align:         text_align
+				align:         label_align
 				theme:         theme
 			)!
 		} else {
@@ -325,7 +325,7 @@ pub fn marker(config MarkerConfig) !Element {
 				color:  text_color
 				size:   font
 				bold:   config.bold
-				align:  text_align
+				align:  label_align
 				valign: .top
 				lines:  if layout.lines == 1 { 1 } else { 0 }
 			})
