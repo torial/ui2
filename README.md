@@ -307,6 +307,22 @@ or gesture phases. Use `button_behavior` for a normal action-bearing composite
 control. If both flags are set, the surface emits the raw pointer phases and
 then its ordinary action after a successful tap.
 
+### Hover
+
+`hoverable: true` (or `ui2.with_hover(el)`) makes any element report
+`pointer:enter:<action>:<x>:<y>` when the pointer comes over it and
+`pointer:leave:...` when it goes, so a hover card can open or a row can
+highlight. `ui2.parse_pointer_event(event)` decodes these and the other
+pointer phases, including actions that contain colons.
+
+Hover follows the CSS `:hover` rule on AppKit, Windows and the custom renderer
+alike: an element is hovered while the topmost element under the pointer is it
+or one of its descendants. Moving onto a child keeps its hoverable ancestors
+hovered, an element covered by another one is not hovered, and hover is checked
+again after every render, so content moving under a still pointer is reported
+too. Leaves are reported innermost first and enters outermost first. Touch
+platforms (iOS, Android) have no hover.
+
 To reuse that style, put the defaults in a sibling VML module. `PrimaryButton`
 can live in `PrimaryButton.vml` or the conventional snake-case
 `primary_button.vml`:

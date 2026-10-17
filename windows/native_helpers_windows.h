@@ -56,6 +56,7 @@ extern int ui2_windows_control_key(void *hwnd, unsigned int virtual_key);
 extern int ui2_windows_context_menu(void *hwnd, int screen_x, int screen_y);
 extern int ui2_windows_cursor(void *hwnd);
 extern void ui2_windows_control_pointer(void *hwnd, unsigned int message, int x, int y);
+extern void ui2_windows_hover_changed(void);
 extern void ui2_windows_control_border(void *hwnd);
 extern int ui2_windows_is_transparent_button(void *hwnd);
 extern int ui2_windows_paint_transparent_button(void *hwnd);
@@ -279,6 +280,47 @@ static inline int ui2_win_forward_wheel(HWND hwnd, UINT message, WPARAM wparam, 
 	return 1;
 }
 
+// Hover is worked out from where the cursor is, not from which window got the
+// message: moving onto a child window makes Win32 report leaving its parent, but
+// CSS-style hover keeps the parent hovered. Asking for WM_MOUSELEAVE on each
+// window the cursor moves over lets the pointer leaving the whole window be seen.
+static void ui2_win_note_hover(HWND hwnd, UINT message) {
+	if (message == WM_MOUSEMOVE) {
+		TRACKMOUSEEVENT track = { sizeof(TRACKMOUSEEVENT), TME_LEAVE, hwnd, 0 };
+		TrackMouseEvent(&track);
+	}
+	ui2_windows_hover_changed();
+}
+
+// Returns the deepest visible window of `root` under the cursor, or NULL when the
+// cursor is outside it or over another top-level window. Unlike WindowFromPoint,
+// descending with ChildWindowFromPointEx also finds static controls (labels and
+// images), which answer hit tests as transparent. The cursor position in root
+// client coordinates goes to *x and *y.
+static inline void *ui2_win_hover_target(void *root, int *x, int *y) {
+	POINT screen;
+	if (root == NULL || !GetCursorPos(&screen)) return NULL;
+	HWND root_window = (HWND)root;
+	POINT local = screen;
+	ScreenToClient(root_window, &local);
+	*x = local.x;
+	*y = local.y;
+	RECT client;
+	GetClientRect(root_window, &client);
+	if (!PtInRect(&client, local)) return NULL;
+	HWND top = WindowFromPoint(screen);
+	if (top == NULL || GetAncestor(top, GA_ROOT) != GetAncestor(root_window, GA_ROOT)) return NULL;
+	HWND current = root_window;
+	for (int depth = 0; depth < 256; depth++) {
+		POINT point = screen;
+		ScreenToClient(current, &point);
+		HWND child = ChildWindowFromPointEx(current, point, CWP_SKIPINVISIBLE);
+		if (child == NULL || child == current) break;
+		current = child;
+	}
+	return current;
+}
+
 static LRESULT CALLBACK ui2_win_control_subclass(HWND hwnd, UINT message, WPARAM wparam,
 		LPARAM lparam, UINT_PTR subclass_id, DWORD_PTR reference_data) {
 	(void)subclass_id;
@@ -300,6 +342,9 @@ static LRESULT CALLBACK ui2_win_control_subclass(HWND hwnd, UINT message, WPARAM
 	if (message == WM_CONTEXTMENU
 		&& ui2_windows_context_menu(hwnd, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))) {
 		return 0;
+	}
+	if (message == WM_MOUSEMOVE || message == WM_MOUSELEAVE) {
+		ui2_win_note_hover(hwnd, message);
 	}
 	if (message == WM_LBUTTONDOWN || message == WM_MOUSEMOVE || message == WM_LBUTTONUP) {
 		ui2_windows_control_pointer(hwnd, message, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
@@ -373,6 +418,9 @@ static LRESULT CALLBACK ui2_win_window_proc(HWND hwnd, UINT message, WPARAM wpar
 	}
 	if (message == WM_SETCURSOR && LOWORD(lparam) == HTCLIENT && ui2_win_apply_cursor(hwnd)) {
 		return TRUE;
+	}
+	if (message == WM_MOUSEMOVE || message == WM_MOUSELEAVE) {
+		ui2_win_note_hover(hwnd, message);
 	}
 	if (message == WM_LBUTTONDOWN || message == WM_MOUSEMOVE || message == WM_LBUTTONUP) {
 		ui2_windows_control_pointer(hwnd, message, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));

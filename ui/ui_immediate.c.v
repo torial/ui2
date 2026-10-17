@@ -173,6 +173,27 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_scroll_offsets = map[string]f64{}
 	__global g_scroll_content_h = map[string]f64{}
 	__global g_hit_targets = []HitTarget{}
+
+	// HoverRegion is the visible part of an element drawn this frame and the
+	// hoverable elements it belongs to, from the outermost in. The last region
+	// under the pointer is the topmost element there, so its chain is what the
+	// pointer hovers.
+	struct HoverRegion {
+		area  Rect
+		chain []string
+	}
+
+	__global g_hover_regions = []HoverRegion{}
+	__global g_hover_chain = []string{}
+	__global g_hovered = []string{}
+	__global g_hover_pointer = HoverPointer{}
+
+	struct HoverPointer {
+	mut:
+		x      f64
+		y      f64
+		inside bool
+	}
 	__global g_touch = TouchState{}
 	__global g_scroll_areas = map[string]Rect{}
 	__global g_active_fields = map[string]bool{}
@@ -682,6 +703,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut has_root := false
 		if voidptr(g_build_screen) != unsafe { nil } {
 			g_hit_targets = []HitTarget{}
+			g_hover_regions = []HoverRegion{}
+			g_hover_chain = []string{}
 			g_tooltip_targets.clear()
 			g_tooltip_owners = 0
 			reset_scroll_frame()
@@ -723,6 +746,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			update_tooltip(time.ticks())
 			draw_tooltip(ctx)
 			prune_unmounted_state()
+			// Content can move under a pointer that stays put.
+			update_hover()
 		}
 		check_long_press()
 		ctx.end()
@@ -741,6 +766,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				// Recorded before any handler below can claim the move, so the
 				// tooltip always knows where the pointer is.
 				g_tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), time.ticks())
+				g_hover_pointer = HoverPointer{
+					x: f64(e.mouse_x)
+					y: f64(e.mouse_y)
+					inside: true
+				}
+				update_hover()
 				if g_touch.down && g_touch.pointer_target.action_id.len > 0 {
 					handle_touch_move(f64(e.mouse_x), f64(e.mouse_y))
 					return
@@ -775,6 +806,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 			.mouse_leave {
 				g_tooltip.pointer_left()
+				g_hover_pointer.inside = false
+				update_hover()
 			}
 			.mouse_up {
 				if g_touch.down && g_touch.pointer_target.action_id.len > 0 {
@@ -1871,6 +1904,48 @@ fn page_focused_text_area(direction int) {
 	// add_tooltip_target registers the part of a target that is visible under
 	// the clip it was drawn with, so a control scrolled out of its viewport
 	// cannot answer for the pointer.
+	fn add_hover_region(area Rect, clip Rect) {
+		visible := intersect_rect(area, clip)
+		if visible.width <= 0 || visible.height <= 0 {
+			return
+		}
+		g_hover_regions << HoverRegion{
+			area: visible
+			chain: g_hover_chain
+		}
+	}
+
+	fn hovered_chain_at(x f64, y f64) []string {
+		for i := g_hover_regions.len - 1; i >= 0; i-- {
+			region := g_hover_regions[i]
+			if x >= region.area.x && x < region.area.x + region.area.width && y >= region.area.y
+				&& y < region.area.y + region.area.height {
+				return region.chain
+			}
+		}
+		return []string{}
+	}
+
+	// update_hover reports the hoverable elements the pointer left and entered
+	// since the last check, comparing what it hovers now with what it hovered.
+	fn update_hover() {
+		pointer := g_hover_pointer
+		current := if pointer.inside { hovered_chain_at(pointer.x, pointer.y) } else { []string{} }
+		left, entered := hover_transitions(g_hovered, current)
+		unsafe {
+			g_hovered = current
+		}
+		if voidptr(g_event_handler) == unsafe { nil } {
+			return
+		}
+		for action in left {
+			g_event_handler(pointer_event_id('leave', action, pointer.x, pointer.y))
+		}
+		for action in entered {
+			g_event_handler(pointer_event_id('enter', action, pointer.x, pointer.y))
+		}
+	}
+
 	fn add_tooltip_target(key string, text string, area Rect, clip Rect) {
 		visible := intersect_rect(area, clip)
 		if visible.width <= 0 || visible.height <= 0 {
@@ -2095,6 +2170,22 @@ fn page_focused_text_area(direction int) {
 		}
 		apply_clip(ctx, clip)
 		area := element_area(ctx, el, off_x, off_y)
+		// A chain is never changed once built — a hoverable element gets a new one —
+		// so regions and the stack share them without copying.
+		outer_hover_chain := g_hover_chain
+		if el.hoverable && element_action_id(el).len > 0 {
+			mut chain := outer_hover_chain.clone()
+			chain << element_action_id(el)
+			unsafe {
+				g_hover_chain = chain
+			}
+		}
+		add_hover_region(area, clip)
+		defer {
+			unsafe {
+				g_hover_chain = outer_hover_chain
+			}
+		}
 		// A declared tooltip covers the element's whole area and is registered
 		// before its children, so a child with hover text of its own wins over
 		// it where they overlap. A surface only has anything to hide once some

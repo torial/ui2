@@ -392,6 +392,7 @@ pub:
 	clickable             bool // view/image: emit pointer down/up events
 	button_behavior       bool // view: emit its ordinary action when released like a button
 	draggable             bool // view/image: emit pointer drag events
+	hoverable             bool // any element: emit pointer enter/leave events as the pointer moves over it
 	rotation              f64 // image: clockwise degrees
 	cursor                string // view/image: hover cursor hint
 	menu                  []MenuEntry

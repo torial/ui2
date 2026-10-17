@@ -27,6 +27,10 @@ fn C.ui2_macos_msg_rect_rect(obj voidptr, sel voidptr, rect C.ui2_macos_rect) C.
 
 fn C.ui2_macos_msg_super_void_id(obj voidptr, superclass voidptr, sel voidptr, arg voidptr)
 
+fn C.ui2_macos_msg_id_point(obj voidptr, sel voidptr, x f64, y f64) voidptr
+
+fn C.ui2_macos_add_tracking_area(view voidptr)
+
 const ns_window_style_titled = u64(1)
 const ns_window_style_closable = u64(2)
 const ns_window_style_miniaturizable = u64(4)
@@ -105,6 +109,11 @@ mut:
 	textview_action_ids map[u64]string // NSTextView pointer -> change event id
 	scroll_ids          map[u64]string // NSClipView pointer -> Scroll element id
 	pointer_ids         map[u64]string // NSView pointer -> element id
+	hover_ids           map[u64]string // NSView pointer -> action of a hoverable element
+	hovered             []string       // hovered actions, outermost first
+	hover_window_point  macos.Point    // last pointer location, window coordinates
+	hover_root_point    macos.Point    // the same in the root view's coordinates
+	hover_inside        bool
 	pointer_clickable   map[u64]bool
 	pointer_buttons     map[u64]bool
 	pointer_draggable   map[u64]bool
@@ -889,6 +898,10 @@ fn ensure_runtime_classes() {
 	if macos.get_class('UI2FlippedView') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSView'), 'UI2FlippedView')
 		macos.add_method(cls, 'isFlipped', voidptr(ui2_view_is_flipped), 'B@:')
+		// Only the root view carries a tracking area, so only it receives these.
+		macos.add_method(cls, 'mouseEntered:', voidptr(ui2_root_mouse_moved), 'v@:@')
+		macos.add_method(cls, 'mouseMoved:', voidptr(ui2_root_mouse_moved), 'v@:@')
+		macos.add_method(cls, 'mouseExited:', voidptr(ui2_root_mouse_exited), 'v@:@')
 		macos.add_method(cls, 'draggingEntered:', voidptr(ui2_dragging_entered), 'Q@:@')
 		macos.add_method(cls, 'performDragOperation:', voidptr(ui2_perform_drag_operation), 'B@:@')
 		macos.register_class_pair(cls)
@@ -987,6 +1000,7 @@ fn render_root(declared Element) {
 	st.view_kinds = map[string]Kind{}
 	st.text_area_direct = map[string]bool{}
 	st.pointer_ids = map[u64]string{}
+	st.hover_ids = map[u64]string{}
 	st.pointer_clickable = map[u64]bool{}
 	st.pointer_buttons = map[u64]bool{}
 	st.pointer_draggable = map[u64]bool{}
@@ -1006,6 +1020,8 @@ fn render_root(declared Element) {
 	mut active := map[string]bool{}
 	render_children(st.root_view, root.children, '', mut active)
 	remove_stale_nodes(active)
+	// Content can move under a pointer that stays put.
+	native_update_hover()
 }
 
 fn render_children(parent NativeView, children []Element, parent_key string, mut active map[string]bool) {
@@ -1142,6 +1158,7 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 		}
 	}
 	if el.kind != .screen {
+		register_hover(native, el)
 		border_box := if el.kind == .toggle_button && el.checked {
 			el.toggle_down_box
 		} else {
@@ -1453,6 +1470,85 @@ fn register_pointer(native NativeView, el Element) {
 	}
 	if element_interactive(el) {
 		native_invalidate_cursor_rects(native)
+	}
+}
+
+fn register_hover(native NativeView, el Element) {
+	if el.hoverable && !el.hidden && element_action_id(el).len > 0 {
+		mut st := state()
+		st.hover_ids[u64(voidptr(native))] = element_action_id(el)
+	}
+}
+
+@[export: 'ui2_root_mouse_moved']
+fn ui2_root_mouse_moved(self voidptr, _cmd voidptr, event voidptr) {
+	mut st := state()
+	if NativeView(self) != st.root_view {
+		return
+	}
+	st.hover_window_point = macos.msg_point(event, 'locationInWindow')
+	st.hover_root_point = native_event_point(st.root_view, event)
+	st.hover_inside = true
+	native_update_hover()
+}
+
+@[export: 'ui2_root_mouse_exited']
+fn ui2_root_mouse_exited(self voidptr, _cmd voidptr, event voidptr) {
+	mut st := state()
+	if NativeView(self) != st.root_view {
+		return
+	}
+	st.hover_root_point = native_event_point(st.root_view, event)
+	st.hover_inside = false
+	native_update_hover()
+}
+
+// native_hovered_chain returns the hoverable elements at a window point, outermost
+// first: the topmost view there and its superviews, as CSS :hover counts them.
+// hitTest: skips hidden views and the parts of a scroll view's content clipped away.
+fn native_hovered_chain(window_point macos.Point) []string {
+	st := state()
+	if st.hover_ids.len == 0 || native_is_nil(st.root_view) {
+		return []string{}
+	}
+	// hitTest: takes a point in the receiver's superview, which for the window's
+	// content view shares the window's coordinates.
+	superview := macos.msg_id(st.root_view, 'superview')
+	point := if objc_is_nil(superview) {
+		window_point
+	} else {
+		macos.msg_point_point_id(superview, 'convertPoint:fromView:', window_point, objc_nil())
+	}
+	mut view := NativeView(C.ui2_macos_msg_id_point(st.root_view, macos.sel('hitTest:'), point.x,
+		point.y))
+	mut inner_first := []string{}
+	for !native_is_nil(view) {
+		if action := st.hover_ids[u64(voidptr(view))] {
+			inner_first << action
+		}
+		if view == st.root_view {
+			break
+		}
+		view = NativeView(macos.msg_id(view, 'superview'))
+	}
+	return inner_first.reverse()
+}
+
+fn native_update_hover() {
+	mut st := state()
+	current := if st.hover_inside { native_hovered_chain(st.hover_window_point) } else { []string{} }
+	left, entered := hover_transitions(st.hovered, current)
+	st.hovered = current
+	if voidptr(st.event_handler) == unsafe { nil } {
+		return
+	}
+	handler := st.event_handler
+	point := st.hover_root_point
+	for action in left {
+		handler('pointer:leave:${action}:${point.x}:${point.y}')
+	}
+	for action in entered {
+		handler('pointer:enter:${action}:${point.x}:${point.y}')
 	}
 }
 
@@ -2816,6 +2912,7 @@ fn ui2_app_did_finish_launching(_self voidptr, _cmd voidptr, _notification voidp
 	st.root_view = native_new_flipped_view(root_frame, BoxStyle{
 		bg: 0xffffff
 	})
+	C.ui2_macos_add_tracking_area(st.root_view)
 	native_register_drop_types(st.root_view)
 	native_set_content_view(st.window, st.root_view)
 	macos.release(st.root_view)
