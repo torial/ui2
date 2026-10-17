@@ -674,8 +674,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// ── Frame & event loop ─────────────────────────────────────────────
 
 	fn on_init(_ &GgApp) {
-		// Text can be measured from here on; builds before this estimate.
-		configure_text_measurer(custom_measure_text_width)
 		if voidptr(g_build_screen) == unsafe { nil } {
 			return
 		}
@@ -705,6 +703,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// been created, so the fallback chain is attached on the way into the
 		// first frame rather than in run_window.
 		ensure_symbol_fallbacks(ctx)
+		if !text_measurement_exact() && ctx.font_inited {
+			// Text is measured from the first frame with fonts and their symbol
+			// fallbacks in place; measured earlier, a glyph only a fallback face
+			// has, such as ⌘, was cached as the width of an empty box.
+			configure_text_measurer(custom_measure_text_width)
+		}
 		mut root := Element{}
 		mut has_root := false
 		if voidptr(g_build_screen) != unsafe { nil } {
@@ -3452,6 +3456,7 @@ fn page_focused_text_area(direction int) {
 		if g_font_symbol_fons != voidptr(fons) {
 			g_font_symbol_fons = voidptr(fons)
 			g_text_area_layouts = map[string]TextAreaLayout{}
+			g_text_widths.clear()
 			g_font_symbol_ids = []int{}
 			g_font_symbol_bases = map[int]bool{}
 			for path in font_symbol_paths() {
