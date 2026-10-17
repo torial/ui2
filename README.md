@@ -635,6 +635,37 @@ MessageBox {
 }
 ```
 
+## Window chrome
+
+`set_window_chrome(.hidden_titlebar)` lets the application draw its own title
+bar: content runs to the top edge of the window. macOS keeps its close,
+minimize and zoom buttons over the content's leading corner
+(`window_controls_leading_inset()` is how much room they take); Windows removes
+the caption but keeps the resizable border, and `window_draws_own_controls()`
+says the application draws the window buttons.
+
+```v
+fn on_event(event string) {
+	if ev := ui2.parse_pointer_event(event) {
+		if ev.phase == 'down' && ev.action == 'titlebar' {
+			ui2.start_window_drag() // the platform moves the window
+		}
+	}
+	match event {
+		'minimize' { ui2.minimize_window() }
+		'maximize' { ui2.toggle_maximize_window() }
+		'close' { ui2.quit() }
+		else {}
+	}
+}
+```
+
+`start_window_drag` only works while a press is being handled, so give the
+title bar `clickable: true` (or `draggable`) and call it on `pointer:down`.
+`window_is_maximized` tells a maximize button which icon to show. These work
+for native and custom-rendered windows on macOS and Windows; Linux, Android and
+iOS keep their own frame and the calls report false.
+
 ## Timers
 
 `after` runs a callback on the UI thread once a delay has passed and then
