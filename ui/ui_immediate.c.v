@@ -2632,8 +2632,17 @@ fn page_focused_text_area(direction int) {
 				g_text_kinds[el.id] = el.kind
 				g_active_fields[el.id] = true
 				current_text := g_text_values[el.id] or { el.text }
-				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
-					g_focused_field == el.id, el.enabled)
+				if el.box.transparent {
+					// A transparent text area sits on what is behind it, as on AppKit:
+					// only its declared borders, and the focus outline while focused.
+					draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
+					if g_focused_field == el.id {
+						draw_outline(ctx, x, y, el.frame.width, el.frame.height, 0x3478d4, el.box.radius)
+					}
+				} else {
+					draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
+						g_focused_field == el.id, el.enabled)
+				}
 				draw_text_area_content(ctx, el, current_text, x, y, clip, scroll_parent_id)
 				if el.enabled && !el.readonly {
 					add_hit_target(HitTarget{
