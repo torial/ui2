@@ -116,6 +116,8 @@ mut:
 	scroll_ids          map[u64]string // NSClipView pointer -> Scroll element id
 	pointer_ids         map[u64]string // NSView pointer -> element id
 	hover_ids           map[u64]string // NSView pointer -> action of a hoverable element
+	rendering           bool // refresh is building or applying the tree
+	refresh_pending     bool // a refresh was asked for while one was rendering
 	image_symbols       map[u64]string // NSImageView pointer -> the symbol and tint it shows
 	hovered             []string       // hovered actions, outermost first
 	hover_window_point  macos.Point    // last pointer location, window coordinates
@@ -239,12 +241,26 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 }
 
 pub fn refresh() {
-	st := state()
+	mut st := state()
 	if native_is_nil(st.root_view) || voidptr(st.build_screen) == unsafe { nil } {
 		return
 	}
+	// Moving and resizing views posts notifications (a scroll view's bounds, for
+	// one) whose handlers may ask for a refresh. Rendering again inside a render
+	// tore the tree it was in the middle of updating, so such a request waits for
+	// the render to finish.
+	if st.rendering {
+		st.refresh_pending = true
+		return
+	}
+	st.rendering = true
 	root := st.build_screen()
 	render_root(root)
+	st.rendering = false
+	if st.refresh_pending {
+		st.refresh_pending = false
+		request_refresh()
+	}
 	schedule_screenshot_capture()
 }
 
