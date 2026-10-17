@@ -2688,13 +2688,19 @@ fn page_focused_text_area(direction int) {
 				} else {
 					20.0
 				}
-				track_color := if el.enabled { el.slider_style.track_color } else { u32(0xe2e8f0) }
+				// A disabled slider keeps its own colors, faded halfway into its track,
+				// so it still suits a dark theme.
+				track_color := el.slider_style.track_color
 				value_color := if el.enabled {
 					el.slider_style.value_track_color
 				} else {
-					u32(0x94a3b8)
+					slider_faded_color(el.slider_style.value_track_color, track_color)
 				}
-				thumb_color := if el.enabled { el.slider_style.thumb_color } else { u32(0x94a3b8) }
+				thumb_color := if el.enabled {
+					el.slider_style.thumb_color
+				} else {
+					slider_faded_color(el.slider_style.thumb_color, track_color)
+				}
 				if el.orientation == .vertical {
 					inset := slider_track_padding(el.padding, frame.height)
 					extent := frame.height - inset * 2
