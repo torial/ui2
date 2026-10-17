@@ -35,7 +35,7 @@ pub:
 	close_on_backdrop bool              = true
 	close_on_escape   bool              = true
 	confirm_on_enter  bool
-	backdrop          DialogBackdrop = .clear
+	backdrop          DialogBackdrop = .dim
 	// resizable adds a drag handle on the panel's inner edge; decode its pointer
 	// events with sheet_size_from_pointer and rebuild with the new panel_size.
 	resizable bool
@@ -146,6 +146,7 @@ fn sheet_panel_box(config SheetConfig) BoxStyle {
 		border_right:  if config.side == .left { 1 } else { 0 }
 		border_top:    if config.side == .bottom { 1 } else { 0 }
 		border_bottom: if config.side == .top { 1 } else { 0 }
+		shadow:        component_popup_shadow()
 	}
 }
 

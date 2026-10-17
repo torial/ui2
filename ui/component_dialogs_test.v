@@ -198,7 +198,7 @@ fn test_dialog_builds_on_modal_view() {
 	// modal_view's backdrop and click-absorbing surface come first.
 	assert el.children.len == 3
 	assert el.children[0].action_id == 'profile:component:backdrop'
-	assert el.children[0].box.transparent
+	assert el.children[0].box.opacity == 0.4 && !el.children[0].box.transparent
 	surface := el.children[2]
 	assert surface.id == dialog_surface_id('profile')
 	assert surface.frame == (dialog_layout(dialogs_test_profile(true)) or { panic(err) }).surface
@@ -240,6 +240,10 @@ fn test_dialog_backdrops() {
 	assert !solid.children[0].box.transparent
 	assert dialog_backdrop_color(ComponentTheme{}) == 0x8c8c8c
 	assert dialog_backdrop_color(component_theme(true)) < 0x172033
+	dim := modal_dialog(dialogs_test_profile(true)) or { panic(err) }
+	assert dim.children[0].box.bg == 0x000000
+	assert dim.children[0].box.opacity == 0.4
+	assert dialog_scrim_opacity(component_theme(true)) == 0.6
 	pinned := modal_dialog(DialogConfig{ ...dialogs_test_profile(true), close_on_backdrop: false }) or {
 		panic(err)
 	}

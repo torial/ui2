@@ -136,16 +136,19 @@ fn popover_layer(id string, window Rect, backdrop_id string, dismiss_action stri
 // border-colored shape and the child its fill, inset over it. A BoxStyle border
 // would be square-cornered in the custom renderer. Lay the panel's content out
 // after that child, in the panel's own coordinates.
-fn popover_panel(size Rect, fill u32, border u32, radius f64) (BoxStyle, []Element) {
+fn popover_panel(size Rect, fill u32, border u32, radius f64, floating bool) (BoxStyle, []Element) {
+	shadow := if floating { component_popup_shadow() } else { BoxShadow{} }
 	if fill == border {
 		return BoxStyle{
 			bg:     fill
 			radius: radius
+			shadow: shadow
 		}, []Element{}
 	}
 	return BoxStyle{
 		bg:     border
 		radius: radius
+		shadow: shadow
 	}, [
 		Element{
 			...view('', rect(1, 1, math.max(size.width - 2, 0), math.max(size.height - 2, 0)),
@@ -163,7 +166,8 @@ fn popover_panel(size Rect, fill u32, border u32, radius f64) (BoxStyle, []Eleme
 // stays with it instead of falling through to the dismiss backdrop below.
 fn popover_surface(id string, size Rect, padding f64, content []Element, role string, accessibility_label string, metrics ComponentMetrics, theme ComponentTheme) !Element {
 	body := component_inset(rect(0, 0, size.width, size.height), padding)!
-	box, mut children := popover_panel(size, theme.background, theme.border, metrics.radius)
+	box, mut children := popover_panel(size, theme.background, theme.border, metrics.radius,
+		true)
 	children << view('', body, BoxStyle{ transparent: true }, content)
 	return Element{
 		...view(id, size, box, children)

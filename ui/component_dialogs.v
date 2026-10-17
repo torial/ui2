@@ -24,12 +24,19 @@ const dialog_entrance_duration = 0.2
 const dialog_text_line_limit = 1000
 
 // DialogBackdrop is what a dialog or sheet puts over the rest of the window.
-// ui2 colors are opaque, so there is no translucent scrim: `clear` keeps the
-// page in view and `solid` hides it behind a dimmed fill.
 pub enum DialogBackdrop {
+	dim   // a translucent scrim that dims the page, as GPUI's overlay does
 	clear // transparent: the page stays visible but cannot be clicked
 	solid // an opaque fill, the theme background darkened
 	none  // no backdrop: the page around the panel stays interactive
+}
+
+// dialog_scrim_opacity is how strongly the dim backdrop darkens the page: a
+// little more over a dark theme, where black on dark shows less.
+fn dialog_scrim_opacity(theme ComponentTheme) f64 {
+	luminance := f64(((theme.background >> 16) & 0xff) + ((theme.background >> 8) & 0xff) +
+		(theme.background & 0xff)) / (3 * 255.0)
+	return if luminance < 0.5 { 0.6 } else { 0.4 }
 }
 
 // DialogButtonRole says what a footer button means, which is what the decoders
@@ -443,13 +450,22 @@ pub fn dialog_backdrop_color(theme ComponentTheme) u32 {
 }
 
 fn dialog_backdrop_box(backdrop DialogBackdrop, theme ComponentTheme) BoxStyle {
-	return if backdrop == .solid {
-		BoxStyle{
-			bg: dialog_backdrop_color(theme)
+	return match backdrop {
+		.solid {
+			BoxStyle{
+				bg: dialog_backdrop_color(theme)
+			}
 		}
-	} else {
-		BoxStyle{
-			transparent: true
+		.dim {
+			BoxStyle{
+				bg:      0x000000
+				opacity: dialog_scrim_opacity(theme)
+			}
+		}
+		else {
+			BoxStyle{
+				transparent: true
+			}
 		}
 	}
 }
@@ -723,7 +739,7 @@ pub:
 	close_on_backdrop bool           = true
 	close_on_escape   bool           = true
 	confirm_on_enter  bool           = true
-	backdrop          DialogBackdrop = .clear
+	backdrop          DialogBackdrop = .dim
 	enabled           bool           = true // false disables every action, e.g. while saving
 	size              ComponentSize  = .medium
 	theme             ComponentTheme
@@ -823,8 +839,10 @@ pub fn modal_dialog(config DialogConfig) !Element {
 		if config.icon_tone == .neutral { config.theme.foreground } else { icon_color },
 		config.theme)
 	surface_el := Element{
-		...view(dialog_surface_id(config.id), geom.surface, component_box(config.theme.background,
-			config.theme.border, spacing.radius), parts)
+		...view(dialog_surface_id(config.id), geom.surface, BoxStyle{
+			...component_box(config.theme.background, config.theme.border, spacing.radius)
+			shadow: component_popup_shadow()
+		}, parts)
 		accessibility_role:  'group'
 		accessibility_label: config.title
 	}

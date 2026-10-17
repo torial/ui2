@@ -840,7 +840,7 @@ fn dropdown_menu_surface(config DropdownMenuConfig, level DropdownMenuLevel, dep
 		(dropdown_menu_at(config.items, level.path) or { DropdownMenuItem{} }).label
 	}
 	box, mut children := popover_panel(level.frame, config.theme.background, config.theme.border,
-		m.surface_rad)
+		m.surface_rad, true)
 	if level.scroll {
 		children << scroll(component_part_id(config.id, 'scroll:${depth}'), rect(1, m.padding,
 			level.frame.width - 2, level.frame.height - m.padding * 2), config.theme.background,
@@ -1004,18 +1004,18 @@ pub fn dropdown_button(config DropdownButtonConfig) !Element {
 	bg, fg, border := dropdown_button_colors(config)
 	pressed := popover_blend(bg, fg, 0.12)
 	local := component_local(config.frame)
-	toggle := dropdown_menu_toggle_action(config.menu_id)
+	menu_toggle := dropdown_menu_toggle_action(config.menu_id)
 	expanded := if config.open { 'expanded' } else { 'collapsed' }
 	if !config.split {
 		chevron := metrics.font_size
 		box, mut children := popover_panel(local, if config.open { pressed } else { bg },
-			border, metrics.radius)
+			border, metrics.radius, false)
 		children << dropdown_button_content(config, local, chevron + metrics.padding, fg)
 		children << dropdown_button_chevron(rect(local.width - metrics.padding - chevron,
 			0, chevron, local.height), fg, config.size)
 		return component_finish(Element{
 			...button_view(config.id, config.frame, box, children)
-			action_id:           toggle
+			action_id:           menu_toggle
 			enabled:             config.enabled
 			accessibility_label: config.label
 			accessibility_value: expanded
@@ -1039,7 +1039,7 @@ pub fn dropdown_button(config DropdownButtonConfig) !Element {
 	}
 	trigger_children << dropdown_button_chevron(rect(0, 0, trigger_width, local.height),
 		fg, config.size)
-	box, mut children := popover_panel(local, bg, border, metrics.radius)
+	box, mut children := popover_panel(local, bg, border, metrics.radius, false)
 	children << [
 		Element{
 			...button_view(dropdown_button_action(config.id), main_frame, BoxStyle{
@@ -1062,7 +1062,7 @@ pub fn dropdown_button(config DropdownButtonConfig) !Element {
 			...button_view(component_part_id(config.id, 'trigger'), rect(main_width, 0,
 				trigger_width, local.height), BoxStyle{ transparent: true }, trigger_children)
 			key:                 'trigger'
-			action_id:           toggle
+			action_id:           menu_toggle
 			enabled:             config.enabled
 			accessibility_label: config.menu_label
 			accessibility_value: expanded

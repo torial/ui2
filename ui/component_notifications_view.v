@@ -406,6 +406,7 @@ fn notification_card(config NotificationStackConfig, entry NotificationEntry, la
 			BoxStyle{
 				bg:     theme.border
 				radius: nm.radius
+				shadow: component_card_shadow()
 			}, children)
 		accessibility_role:  if n.kind in [.warning, .error] { 'alert' } else { 'status' }
 		accessibility_label: summary

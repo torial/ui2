@@ -39,7 +39,7 @@ pub:
 	close_button      bool
 	close_on_backdrop bool
 	close_on_escape   bool           = true
-	backdrop          DialogBackdrop = .clear
+	backdrop          DialogBackdrop = .dim
 	enabled           bool           = true
 	size              ComponentSize  = .medium
 	theme             ComponentTheme
