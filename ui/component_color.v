@@ -536,6 +536,30 @@ pub fn color_picker_height(config ColorPickerConfig) f64 {
 // back inside the window, 8 points from its edges. Swap this function out to
 // use a shared popover positioner.
 pub fn color_picker_popover_frame(anchor Rect, window Rect, width f64, height f64, corner ColorPickerAnchor) Rect {
+	// The shared positioner flips and shifts the same way every popover does.
+	if window.width > 0 && window.height > 0 {
+		if placed := popover_place(PopoverPlacementConfig{
+			anchor: anchor
+			window: window
+			width:  width
+			height: height
+			side:   if corner == .top_left || corner == .top_right {
+				PopoverSide.bottom
+			} else {
+				.top
+			}
+			align:  if corner == .top_left || corner == .bottom_left {
+				PopoverAlign.start
+			} else {
+				.end
+			}
+			offset: 4
+			margin: 8
+		})
+		{
+			return rect(math.round(placed.frame.x), math.round(placed.frame.y), width, height)
+		}
+	}
 	gap := 4.0
 	margin := 8.0
 	opens_down := corner == .top_left || corner == .top_right

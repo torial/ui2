@@ -367,6 +367,20 @@ pub const date_picker_popover_margin = 8.0
 // Pure and self-contained, this is the only placement logic the date picker
 // has, so a shared popover can replace it.
 pub fn date_picker_popover_frame(anchor Rect, width f64, height f64, window_width f64, window_height f64) Rect {
+	// The shared positioner flips and shifts the same way every popover does.
+	if placed := popover_place(PopoverPlacementConfig{
+		anchor: anchor
+		window: rect(0, 0, window_width, window_height)
+		width:  width
+		height: height
+		side:   .bottom
+		align:  .start
+		offset: date_picker_popover_gap
+		margin: date_picker_popover_margin
+	})
+	{
+		return placed.frame
+	}
 	gap := date_picker_popover_gap
 	margin := date_picker_popover_margin
 	mut x := math.min(anchor.x, window_width - margin - width)
@@ -671,7 +685,7 @@ pub fn date_picker_overlay(config DatePickerConfig) !Element {
 		}
 		content << time_field(date_picker_time(config, layout.time))!
 	}
-	popover := Element{
+	popover_el := Element{
 		...view(component_part_id(config.id, 'popover'), frame, BoxStyle{ transparent: true },
 			content)
 		key:                 'popover'
@@ -685,6 +699,6 @@ pub fn date_picker_overlay(config DatePickerConfig) !Element {
 	return component_finish(view(id, window, BoxStyle{ transparent: true }, [
 		backdrop,
 		surface,
-		popover,
+		popover_el,
 	]))
 }
