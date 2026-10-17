@@ -2308,12 +2308,12 @@ fn page_focused_text_area(direction int) {
 				}
 				if child_clip.width > 0 && child_clip.height > 0 {
 					apply_clip(ctx, child_clip)
-					if scrolls_y {
+					if scrolls_y && !el.disable_scroll {
 						// A transparent scroll still names the color it sits on.
 						draw_scrollbar(ctx, x, y, el.frame.width, el.frame.height, content_h, scroll_y,
 							el.persistent_scrollbars, el.box.bg)
 					}
-					if scrolls_x {
+					if scrolls_x && !el.disable_scroll {
 						draw_scrollbar_x(ctx, frame, content_w, scroll_x, el.persistent_scrollbars,
 							beside_vertical, el.box.bg)
 					}
