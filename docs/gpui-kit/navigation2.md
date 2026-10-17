@@ -363,14 +363,8 @@ are `status`. Disclosures are buttons labelled "Expand …" or "Collapse …".
 
 ## Platform notes
 
-- The custom renderer draws a Scroll element's scroller whenever its content
-  overflows, so an overflowing tab strip shows a thin thumb along its lower
-  edge there; AppKit's overlay scroller fades out.
-- In the custom renderer a drag that starts inside a Scroll element also
-  scrolls it, so dragging tabs or rows in a strip or tree that overflows moves
-  the content as well. The gallery's reorderable bar and tree fit their frames.
-- AppKit maps `tab` and `checkbox`; `tablist` and `treeitem` keep the native
-  role for now.
+- AppKit maps `tablist`, `tab` and `checkbox`; `treeitem` rows keep their
+  native button role so they stay pressable.
 
 ## Attribution
 

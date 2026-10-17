@@ -365,17 +365,8 @@ ui2.scroll_to_offset(id, m.reveal(row_y, row_h, .center))
   `NSImageScaleProportionallyUpOrDown`, the custom renderer stretches to the
   frame; `image_box` hides this for every fit except `fill`, which AppKit draws
   like `contain`.
-- **Text areas on the custom renderer** always paint their box (`box.bg`, a fixed
-  `#d7dee8` outline and the focus ring) and ignore `BoxStyle.transparent`;
-  `textarea` therefore draws its border and placeholder over the text area there.
-- **Symbol glyphs measured before the first frame.** The custom renderer builds
-  once in `on_init` (to preload images) before `ensure_symbol_fallbacks` has
-  attached the fallback faces, so a glyph such as ✓ or ⌘ that is measured in
-  that build is cached as the empty box for that face and size.
-  `styled_label` and `tooltip_popup` measure their text, so a `⌘S` shortcut shows
-  the box until this is fixed.
-- **Persistent scrollers on AppKit** draw in the system appearance, so a
-  `scrollbar: .always` pane shows a light track on a dark theme.
+- `textarea` draws its own border and placeholder over the text area, so it
+  looks the same whatever the text area's own frame looks like on a backend.
 
 ## Tests
 
