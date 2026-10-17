@@ -2133,6 +2133,8 @@ fn native_set_view_shape(view NativeView, el Element) {
 		native_set_associated_object(view, key, layer)
 		macos.release(layer)
 		macos.msg_void_f64(layer, 'setZPosition:', -999)
+		// What falls outside the frame is clipped, as in the custom renderer.
+		macos.msg_void_bool(layer, 'setMasksToBounds:', true)
 	}
 	if macos.msg_id(layer, 'superlayer') != parent {
 		macos.msg_void1(parent, 'addSublayer:', layer)
