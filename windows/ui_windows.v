@@ -197,6 +197,8 @@ fn C.ui2_win_ticks() u64
 
 fn C.ui2_win_point_to_root(hwnd voidptr, root voidptr, x &int, y &int)
 
+fn C.ui2_win_hover_target(root voidptr, x &int, y &int) voidptr
+
 fn C.ui2_win_root_point_in_client(root voidptr, target voidptr, x int, y int) int
 
 fn C.ui2_win_menu_create() voidptr
@@ -267,6 +269,8 @@ struct WindowsPointerBinding {
 struct WindowsState {
 mut:
 	symbol_font_attempted bool
+	hover_bindings        map[u64]string // window handle -> action of a hoverable element
+	hovered               []string       // hovered actions, outermost first
 	build_screen       BuildFn = BuildFn(unsafe { nil })
 	event_handler      EventFn = EventFn(unsafe { nil })
 	key_handler        KeyFn = KeyFn(unsafe { nil })
@@ -632,6 +636,7 @@ pub fn refresh() {
 	st.change_ids = map[u64]string{}
 	st.submit_ids = map[u64]string{}
 	st.pointer_bindings = map[u64]WindowsPointerBinding{}
+	st.hover_bindings = map[u64]string{}
 	st.menus = map[u64][]MenuEntry{}
 	st.cursors = map[u64]int{}
 	st.scroll_ids = map[u64]string{}
@@ -651,6 +656,8 @@ pub fn refresh() {
 	windows_remove_stale(active)
 	st.rendering = false
 	C.ui2_win_invalidate(st.root)
+	// Content can move under a cursor that stays put.
+	windows_update_hover()
 }
 
 pub fn request_refresh() {
@@ -1489,6 +1496,9 @@ fn windows_register_bindings(hwnd voidptr, el Element) {
 	if el.submit_id.len > 0 && el.kind == .text_field {
 		st.submit_ids[handle] = el.submit_id
 	}
+	if el.hoverable && !el.hidden && action_id.len > 0 {
+		st.hover_bindings[handle] = action_id
+	}
 	if el.enabled && !el.hidden
 		&& (el.clickable || (el.kind == .view && el.button_behavior) || el.draggable
 		|| el.long_press || el.swipe_left) {
@@ -1714,6 +1724,45 @@ fn windows_record_scroll(hwnd voidptr, key string, position int, horizontal bool
 		st.scroll_handler(id)
 	}
 	return position - old_position
+}
+
+@[export: 'ui2_windows_hover_changed']
+fn ui2_windows_hover_changed() {
+	windows_update_hover()
+}
+
+// windows_update_hover reports the hoverable elements the cursor left and entered:
+// the window under it and that window's ancestors, as CSS :hover counts them.
+fn windows_update_hover() {
+	mut st := windows_state()
+	if st.root == unsafe { nil } || st.rendering {
+		return
+	}
+	mut x := 0
+	mut y := 0
+	mut current := []string{}
+	if st.hover_bindings.len > 0 {
+		mut target := C.ui2_win_hover_target(st.root, &x, &y)
+		mut inner_first := []string{}
+		for target != unsafe { nil } {
+			if action := st.hover_bindings[windows_handle_id(target)] {
+				inner_first << action
+			}
+			if target == st.root {
+				break
+			}
+			target = C.ui2_win_parent(target)
+		}
+		current = inner_first.reverse()
+	}
+	left, entered := hover_transitions(st.hovered, current)
+	st.hovered = current
+	for action in left {
+		windows_emit_action('pointer:leave:${action}:${x}:${y}')
+	}
+	for action in entered {
+		windows_emit_action('pointer:enter:${action}:${x}:${y}')
+	}
 }
 
 fn windows_emit_action(id string) {

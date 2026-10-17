@@ -721,6 +721,11 @@ fn apply_widget_animations_at(root Element, now i64) Element {
 	result := apply_widget_animation_node(root, now, mut pending)
 	runtime.mutex.unlock()
 	dispatch_animation_events(pending)
+	// `after` callbacks run at the same point as animation callbacks; what they
+	// change is picked up by the build this refresh asks for.
+	if run_due_timers(now) {
+		request_animation_refresh()
+	}
 	return result
 }
 
