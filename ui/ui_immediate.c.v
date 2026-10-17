@@ -953,11 +953,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			drag_scrollbar(x, y)
 			return
 		}
-		if g_touch.scroll_chain.len > 0 {
+		dragging := target.action_id.len > 0 && target.draggable
+		// A press on something draggable drags it; the scroll around it stays put,
+		// or reordering tabs in a strip that scrolls would also scroll the strip.
+		if g_touch.scroll_chain.len > 0 && !dragging {
 			apply_scroll_chain(g_touch.scroll_chain, previous_y - y, false)
 			apply_scroll_chain(g_touch.scroll_chain, previous_x - x, true)
 		}
-		if target.action_id.len > 0 && target.draggable {
+		if dragging {
 			fire_event(pointer_event_id('drag', target.action_id, x, y))
 		}
 	}
