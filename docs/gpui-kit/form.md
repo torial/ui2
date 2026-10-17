@@ -288,25 +288,11 @@ labelled "Error", section titles have the role `heading` and rules
 | Responsive `columns(if is_mobile { 1 } else { 2 })` | `collapse_below` and `form_responsive_columns` |
 | Rows sized by flexbox to their content | Rows are as tall as their tallest field; text heights are estimated, since ui2 has no text measurement |
 
-## Requested changes to shared files
+## Platform notes
 
-- **AppKit text fields in dark themes** (also requested by the pickers group):
-  the rounded bezel draws a white background whatever `backgroundColor` says,
-  so light text on it is unreadable. The example keeps native text-entry
-  controls in the light theme on AppKit for that reason.
-- **AppKit checkbox titles** ignore `TextStyle.color` (`native_update_checkbox`
-  sets only the font), so a checkbox title is unreadable on a dark background.
-  The example draws its checkbox titles as labels beside untitled checkboxes.
-- **AppKit `TextStyle.lines: 0`** draws one line: `native_apply_line_limit`
-  and `setMaximumNumberOfLines:` treat every value below 2 as single-line,
-  while the README defines 0 as "as many as the frame shows". The form passes
-  explicit line counts; `inline_alert` and `empty_state` use 0 for wrapping
-  descriptions.
-- **AppKit text areas** draw `BoxStyle.bg` but no border or corner radius,
-  unlike the custom renderer. The example wraps its text area in a bordered
-  view on AppKit.
-- **Accessibility roles**: `heading` (section titles) has no AppKit mapping;
-  `AXHeading` would let VoiceOver's rotor jump between sections.
+- On AppKit a text area's border is its layer's, which window captures leave
+  out; the gallery puts its text area in a bordered view there so screenshots
+  match the custom renderer.
 
 ## Attribution
 

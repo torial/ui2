@@ -97,18 +97,6 @@ fn theme_of(a &FormDemo) ui2.ComponentTheme {
 	return ui2.component_theme(a.dark)
 }
 
-// control_theme colors the native text-entry controls. AppKit draws a text
-// field's rounded bezel white whatever background it is given, so on AppKit
-// they keep the light theme, where their text stays readable; the custom
-// renderer draws them in the current theme.
-fn control_theme(a &FormDemo) ui2.ComponentTheme {
-	$if !ui2_custom_rendering ?&& macos {
-		return ui2.component_theme(false)
-	} $else {
-		return theme_of(a)
-	}
-}
-
 fn window_rect() ui2.Rect {
 	b := ui2.bounds()
 	if b.width > 0 && b.height > 0 {
@@ -166,36 +154,15 @@ fn (i Input) control() ui2.FormSlotFn {
 	}
 }
 
-// checkbox_control is a native checkbox whose title is a label in the
-// theme's color (AppKit draws checkbox titles in its own color). Pressing the
-// title toggles the box as well.
+// checkbox_control is a native checkbox titled in the theme's text style.
 fn checkbox_control(id string, title string, checked bool, theme ui2.ComponentTheme) ui2.FormSlotFn {
 	return fn [id, title, checked, theme] (frame ui2.Rect) !ui2.Element {
-		box := 22.0
-		return ui2.view('', frame, ui2.BoxStyle{
-			transparent: true
-		}, [
-			ui2.Element{
-				...ui2.checkbox(id, '', checked, ui2.rect(0, 0, box, frame.height), field_text(theme))
-				accessibility_label: title
-			},
-			ui2.Element{
-				...ui2.button_view('${id}-title', ui2.rect(box + 2, 0, frame.width - box - 2,
-					frame.height), ui2.BoxStyle{
-					transparent: true
-				}, [
-					ui2.label('', title, ui2.rect(0, 0, frame.width - box - 2, frame.height),
-						field_text(theme)),
-				])
-				action_id:          id
-				accessibility_role: 'presentation'
-			},
-		])
+		return ui2.checkbox(id, title, checked, frame, field_text(theme))
 	}
 }
 
 // bordered_text_area is a text area with the border text fields have. AppKit
-// draws a text area's background but not its border, so there it sits inside
+// window captures leave out a text area's own border, so there it sits inside
 // a bordered view; the custom renderer draws the border itself.
 fn bordered_text_area(id string, value string, frame ui2.Rect, invalid bool, theme ui2.ComponentTheme) ui2.Element {
 	$if !ui2_custom_rendering ?&& macos {
@@ -275,7 +242,7 @@ fn register_config(a &FormDemo) ui2.FormConfig {
 		value:       a.first
 		invalid:     'name' in errors && a.first.trim_space().len == 0
 		submit:      submit
-		theme:       control_theme(a)
+		theme:       theme_of(a)
 	}
 	last := Input{
 		...first
@@ -438,7 +405,7 @@ fn settings_config(a &FormDemo) ui2.FormConfig {
 	s := a.settings
 	errors := if a.settings_tried { settings_errors(s) } else { map[string]string{} }
 	submit := ui2.form_submit_action('settings')
-	fields_theme := control_theme(a)
+	fields_theme := theme_of(a)
 	bio_count := s.bio.runes().len
 	return ui2.FormConfig{
 		id:           'settings'
@@ -611,7 +578,7 @@ fn username_config(a &FormDemo) ui2.InputGroupConfig {
 				text: '@'
 			},
 		]
-		theme:               control_theme(a)
+		theme:               theme_of(a)
 	}
 }
 
@@ -647,7 +614,7 @@ fn text_size_config(a &FormDemo) ui2.NumberInputConfig {
 		max:                 24
 		precision:           0
 		accessibility_label: 'Text size'
-		theme:               control_theme(a)
+		theme:               theme_of(a)
 	}
 }
 
@@ -714,7 +681,7 @@ fn shipping_config(a &FormDemo) ui2.FormConfig {
 	us := a.country == ['us']
 	base := Input{
 		submit: ui2.form_submit_action('shipping')
-		theme:  control_theme(a)
+		theme:  theme_of(a)
 	}
 	return ui2.FormConfig{
 		id:      'shipping'
@@ -953,7 +920,7 @@ fn newsletter_config(a &FormDemo) ui2.FormFieldConfig {
 				value:       a.newsletter
 				invalid:     failure.len > 0
 				submit:      'subscribe'
-				theme:       control_theme(a)
+				theme:       theme_of(a)
 			}.control()
 		}
 	}

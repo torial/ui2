@@ -665,7 +665,7 @@ fn test_form_builds_labels_controls_and_messages() {
 	assert form_right(marker.frame) <= form_right(label_el.frame) + marker.frame.width + 3
 	description := form_find(el, 'description:email') or { panic('missing') }
 	assert description.text_style.color == config.theme.muted_foreground
-	// Wrapped text is given its line count: AppKit draws `lines: 0` on one line.
+	// Wrapped text is given the line count its row was sized for.
 	assert description.text_style.lines == 1
 	narrow := form(FormConfig{
 		...config

@@ -332,16 +332,6 @@ with labels and tooltips (`Close <title>`, `More`, `Zoom In`, `Open Left Dock`);
 the menu button's value is `expanded` while its menu is open. Panel content is
 a `group` labelled with the panel's title.
 
-## Changes requested outside this group
-
-- AppKit role mapping for `tablist` (AXTabGroup). Until then tab bars keep the
-  native role of a view.
-- The tracker in `docs/gpui-kit-migration.md`: `resizable` → `resizable_panels`,
-  `dock` → `dock_area`, Done, linking this page.
-- `third_party/gpui-kit/NOTICE.md`: list `ui/component_panels.v`,
-  `ui/component_panels_dock_view.v` and `ui/component_panels_test.v` (see
-  Attribution).
-
 ## Attribution
 
 `ui/component_panels.v` takes two rules from GPUI Kit: the handle indicator's

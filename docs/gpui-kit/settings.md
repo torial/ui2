@@ -287,11 +287,6 @@ empty search result is a `status`.
 
 - The slider is the platform's own control (AppKit's NSSlider, the custom
   renderer's themed slider), so it keeps the system look on AppKit.
-- AppKit's rounded text-field bezel paints a white background whatever the
-  box color, so in a dark theme the search, input and number fields show light
-  text on white. Every component with native fields does this today; the fix
-  belongs in AppKit's `native_update_text_field` (a square bezel, or an
-  appearance that follows the background, when the box has a fill).
 - The custom renderer's fonts have no CJK glyphs, so option labels in Chinese,
   Japanese or Korean draw as boxes there.
 
