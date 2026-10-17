@@ -1659,12 +1659,12 @@ fn (mut l CodeLexer) lex_markdown_inline(start int, end int) {
 		}
 		if (c == `*` || c == `_`) && i + 1 < end {
 			strong := l.at(i + 1) == c
-			marker := if strong { 2 } else { 1 }
+			delim_len := if strong { 2 } else { 1 }
 			if !strong && c == `_` && i > start && code_ident_rune(l.src[i - 1]) {
 				i++
 				continue
 			}
-			body := i + marker
+			body := i + delim_len
 			if body < end && l.src[body] != ` ` {
 				mut j := body
 				for j < end {
@@ -1674,12 +1674,12 @@ fn (mut l CodeLexer) lex_markdown_inline(start int, end int) {
 					j++
 				}
 				if j < end && j > body {
-					l.add(i, j + marker, if strong {
+					l.add(i, j + delim_len, if strong {
 						CodeTokenKind.strong
 					} else {
 						CodeTokenKind.emphasis
 					})
-					i = j + marker
+					i = j + delim_len
 					continue
 				}
 			}
