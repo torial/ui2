@@ -3033,8 +3033,12 @@ fn native_update_text_area(native NativeView, el Element, declared_text_changed 
 	}
 	macos.msg_void_bool(tv, 'setEditable:', !el.readonly && el.enabled)
 	macos.msg_void_bool(tv, 'setSelectable:', true)
-	macos.msg_void1(tv, 'setFont:', native_text_style_font(el.text_style))
-	macos.msg_void1(tv, 'setTextColor:', native_color(el.text_style.color))
+	if el.text_runs.len == 0 {
+		// Both apply to all of the text, so a rich text area keeps the fonts and
+		// colors its runs gave it; its base style goes in with its content.
+		macos.msg_void1(tv, 'setFont:', native_text_style_font(el.text_style))
+		macos.msg_void1(tv, 'setTextColor:', native_color(el.text_style.color))
+	}
 	macos.msg_void_bool(tv, 'setDrawsBackground:', box_draws_fill(el.box))
 	if box_draws_fill(el.box) {
 		macos.msg_void1(tv, 'setBackgroundColor:', native_color(el.box.bg))
