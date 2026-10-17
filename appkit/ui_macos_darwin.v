@@ -1350,7 +1350,7 @@ fn native_create_element(el Element) NativeView {
 			native_new_label(element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.font_family, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image {
-			native_new_image(element_rect(el.frame), el.image_path, el.rotation)
+			native_new_image(element_rect(el.frame), el.image_path, el.rotation, el.text_style.color)
 		}
 		.button {
 			native_new_button(element_rect(el.frame), el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
@@ -1397,7 +1397,8 @@ fn native_update_element(native NativeView, el Element, declared_text_changed bo
 			native_update_label(native, element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.font_family, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image {
-			native_update_image(native, element_rect(el.frame), el.image_path, el.rotation)
+			native_update_image(native, element_rect(el.frame), el.image_path, el.rotation,
+				el.text_style.color)
 		}
 		.button {
 			native_update_button(native, element_rect(el.frame), el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
@@ -2004,13 +2005,16 @@ fn native_set_scroll_background(scroll NativeView, box BoxStyle) {
 	}
 }
 
-fn native_new_image(frame NativeRect, path string, rotation f64) NativeView {
+fn native_new_image(frame NativeRect, path string, rotation f64, tint u32) NativeView {
 	image_view := macos.msg_id_rect(macos.alloc('UI2PointerImageView'), 'initWithFrame:', appkit_rect(frame))
-	native_update_image(image_view, frame, path, rotation)
+	native_update_image(image_view, frame, path, rotation, tint)
 	return image_view
 }
 
-fn native_update_image(image_view NativeView, frame NativeRect, path string, rotation f64) {
+// A `symbol:` path draws that SF Symbol, scaled to the frame and tinted with the
+// element's text color the way the other backends tint its glyph; a file image
+// keeps its own colors.
+fn native_update_image(image_view NativeView, frame NativeRect, path string, rotation f64, tint u32) {
 	rotated := rotation < -0.001 || rotation > 0.001
 	native_view_reset_transform(image_view)
 	native_set_frame(image_view, frame)
@@ -2023,6 +2027,17 @@ fn native_update_image(image_view NativeView, frame NativeRect, path string, rot
 	if path.trim_space() == '' {
 		macos.msg_void1(image_view, 'setImage:', macos.Id(unsafe { nil }))
 		return
+	}
+	tints := macos.responds_to(image_view, 'setContentTintColor:')
+	if path.starts_with('symbol:') {
+		macos.msg_void1(image_view, 'setImage:', native_image_from_name(path))
+		if tints {
+			macos.msg_void1(image_view, 'setContentTintColor:', native_color(tint))
+		}
+		return
+	}
+	if tints {
+		macos.msg_void1(image_view, 'setContentTintColor:', macos.Id(unsafe { nil }))
 	}
 	img := macos.msg_id1(macos.alloc('NSImage'), 'initWithContentsOfFile:', macos.nsstring(path))
 	macos.msg_void1(image_view, 'setImage:', img)

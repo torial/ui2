@@ -266,6 +266,7 @@ struct WindowsPointerBinding {
 @[heap]
 struct WindowsState {
 mut:
+	symbol_font_attempted bool
 	build_screen       BuildFn = BuildFn(unsafe { nil })
 	event_handler      EventFn = EventFn(unsafe { nil })
 	key_handler        KeyFn = KeyFn(unsafe { nil })
@@ -366,6 +367,81 @@ const windows_state_singleton = &WindowsState{
 	pending_scroll: map[string]int{}
 	pending_scroll_x: map[string]int{}
 	suppress_click: map[u64]bool{}
+}
+
+fn C.AddFontResourceExW(name &u16, flags u32, reserved voidptr) int
+
+const windows_fr_private = u32(0x10)
+
+// Win32 has no symbol images, so a `symbol:` image is drawn as a label holding its
+// Material Icons glyph, the way the custom renderer draws it, tinted with the text
+// color and sized so the glyph's em fills the smaller side of the frame (a
+// point is 4/3 of a 96-DPI pixel). Subtrees without one are returned untouched.
+fn windows_symbol_images_as_labels(el Element) Element {
+	if !element_has_symbol_image(el) {
+		return el
+	}
+	mut children := []Element{cap: el.children.len}
+	for child in el.children {
+		children << windows_symbol_images_as_labels(child)
+	}
+	if el.kind == .image {
+		if name := symbol_name(el.image_path) {
+			windows_load_symbol_font()
+			side := if el.frame.width < el.frame.height { el.frame.width } else { el.frame.height }
+			return Element{
+				...el
+				kind:                .label
+				text:                symbol_glyph(name)
+				image_path:          ''
+				children:            children
+				text_style:          TextStyle{
+					color:       el.text_style.color
+					font_family: 'Material Icons'
+					size:        side * 0.75
+					align:       .center
+					valign:      .middle
+				}
+				accessibility_role:  if el.accessibility_role.len > 0 { el.accessibility_role } else { 'img' }
+				accessibility_label: if el.accessibility_label.len > 0 { el.accessibility_label } else { name }
+			}
+		}
+	}
+	return Element{
+		...el
+		children: children
+	}
+}
+
+fn element_has_symbol_image(el Element) bool {
+	if el.kind == .image && el.image_path.starts_with('symbol:') {
+		return true
+	}
+	for child in el.children {
+		if element_has_symbol_image(child) {
+			return true
+		}
+	}
+	return false
+}
+
+// Registers the bundled Material Icons face for this process only, once.
+fn windows_load_symbol_font() {
+	mut st := windows_state()
+	if st.symbol_font_attempted {
+		return
+	}
+	st.symbol_font_attempted = true
+	path := font_bundle_file('MaterialIcons-Regular.ttf')
+	if path.len == 0 {
+		eprintln('ui2: MaterialIcons-Regular.ttf was not found; symbol images will not draw')
+		return
+	}
+	wide := path.to_wide()
+	if C.AddFontResourceExW(wide, windows_fr_private, unsafe { nil }) == 0 {
+		eprintln('ui2: could not load ${path}; symbol images will not draw')
+	}
+	unsafe { free(wide) }
 }
 
 fn windows_state() &WindowsState {
@@ -541,7 +617,7 @@ pub fn refresh() {
 		return
 	}
 	declared := st.build_screen()
-	root := apply_widget_animations(declared)
+	root := windows_symbol_images_as_labels(apply_widget_animations(declared))
 	validate_element_tree(root) or {
 		eprintln('ui2: ${err}')
 		return
