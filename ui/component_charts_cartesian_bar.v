@@ -579,7 +579,7 @@ pub fn bar_chart(config BarChartConfig) !Element {
 	plot := g.plot
 	n := config.categories.len
 	theme := config.theme
-	progress, marker := plot_appear(config.id, config.appear, config.appear_key, config.appear_duration,
+	progress, appear_marker := plot_appear(config.id, config.appear, config.appear_key, config.appear_duration,
 		config.reduce_motion)
 	mut children := []Element{}
 	if config.grid || config.value_axis {
@@ -682,7 +682,7 @@ pub fn bar_chart(config BarChartConfig) !Element {
 		}
 		children << cartesian_hover_bands(config.id, g.slots, labels)
 	}
-	children << marker
+	children << appear_marker
 	return cartesian_chart_view(config.id, config.frame, children, if config.accessibility_label.len > 0 {
 		config.accessibility_label
 	} else {

@@ -442,11 +442,11 @@ fn plot_appear(id string, enabled bool, key string, duration f64, reduce_motion 
 	if !enabled || reduce_motion || duration <= 0 {
 		return 1.0, []Element{}
 	}
-	marker := component_part_id(id, 'appear:${key}')
-	info := animation_info(marker)
+	appear_marker := component_part_id(id, 'appear:${key}')
+	info := animation_info(appear_marker)
 	progress := match info.status {
 		.idle {
-			animation(duration: duration, x: 1).start(marker)
+			animation(duration: duration, x: 1).start(appear_marker)
 			0.0
 		}
 		.running {
@@ -458,7 +458,7 @@ fn plot_appear(id string, enabled bool, key string, duration f64, reduce_motion 
 	}
 	return plot_ease_out_quart(progress), [
 		Element{
-			...view(marker, rect(0, 0, 0, 0), BoxStyle{ transparent: true }, []Element{})
+			...view(appear_marker, rect(0, 0, 0, 0), BoxStyle{ transparent: true }, []Element{})
 			hidden: true
 		},
 	]

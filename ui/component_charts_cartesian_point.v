@@ -313,7 +313,7 @@ fn point_chart(spec PointChartSpec) !Element {
 	plot := g.plot
 	n := spec.categories.len
 	theme := spec.theme
-	progress, marker := plot_appear(spec.id, spec.appear, spec.appear_key, spec.appear_duration,
+	progress, appear_marker := plot_appear(spec.id, spec.appear, spec.appear_key, spec.appear_duration,
 		spec.reduce_motion)
 	mut children := []Element{}
 	if spec.grid || spec.y_axis {
@@ -457,7 +457,7 @@ fn point_chart(spec PointChartSpec) !Element {
 		children << cartesian_hover_bands(spec.id, point_chart_hover_frames(g, n), point_chart_band_labels(spec,
 			g))
 	}
-	children << marker
+	children << appear_marker
 	return cartesian_chart_view(spec.id, spec.frame, children, if spec.accessibility_label.len > 0 {
 		spec.accessibility_label
 	} else if spec.kind == .area {
