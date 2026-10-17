@@ -329,14 +329,6 @@ Upstream ships twenty-one theme files; all of them (38 themes, with their
 
 ## Platform notes
 
-- AppKit and UIKit draw diagonal gradients on boxes that are not square with
-  the wrong direction: they hand `CAGradientLayer` the gradient line as
-  fractions of the bounds, and the layer applies the direction in that unit
-  square, so a 45° gradient on a wide banner varies mostly vertically and
-  over a narrow range. Horizontal and vertical gradients are right. The
-  accent gradient and the example's Sunset theme run horizontally and
-  vertically for that reason; `135deg` themes such as upstream's examples
-  look right in the custom renderer only until the backends are fixed.
 - Native buttons, checkboxes and switches keep the platform look; AppKit's
   switch is gray while the window is inactive, as in screenshots.
 

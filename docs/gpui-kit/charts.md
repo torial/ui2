@@ -285,19 +285,14 @@ Each chart is an `img` whose label is `title` (or "Pie chart", "Radar chart",
 "Candlestick chart", "Sankey chart") and whose value is the data in words:
 every slice's share, every series' values, the period range and last close, or
 every flow. Legend items carry their label and value. The tooltip card has the
-`tooltip` role, which no backend maps yet, and an accessibility label with its
+`tooltip` role (a help tag on AppKit) and an accessibility label with its
 text. Hover targets are transparent views without roles.
 
 ## Platform notes
 
-- **AppKit does not clip a shape's path to its frame**, though `shape`'s
-  documentation and the custom renderer do. The charts never rely on clipping:
-  gradient ribbons are cut into exact pieces (`sankey_ribbon_piece`) and the
-  appear reveal leaves out what is past its edge.
-- **AppKit shortens a centered label** exactly as wide as `measure_text_width`
-  reports for its text (an ellipsis replaces the last letters), while a left- or
-  right-aligned one shows it whole. The charts draw centered text left-aligned
-  in a frame cut to the measured width.
+- The charts do not rely on a shape being clipped to its frame: gradient
+  ribbons are cut into exact pieces (`sankey_ribbon_piece`) and the appear
+  reveal leaves out what is past its edge.
 - **The custom renderer measures bold text narrower than regular** for some
   strings; labels that can turn bold on hover are given the wider of the two.
 - Touch platforms have no hover, so the charts show no tooltips there.

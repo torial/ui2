@@ -480,15 +480,8 @@ tooltip name every series.
 
 ## Platform notes
 
-- AppKit cuts short a centered label exactly as wide as `measure_text_width`
-  says its text is (about 4 points short of what it needs for two or three
-  characters, 1 to 2 points for longer text); left and right aligned labels at
-  that width show it whole. Axis and value labels are therefore placed centered
-  by their frames and drawn left aligned.
-- AppKit draws a shape's path past its frame (its layer does not mask to its
-  bounds), while the custom renderer clips it there, so nothing here relies on
-  that clipping: reveals cut the paths themselves and pinned axes clamp values
-  to the plot.
+- Nothing here relies on a shape being clipped to its frame: reveals cut the
+  paths themselves and pinned axes clamp values to the plot.
 - The custom renderer draws at most 65,536 sokol-gl vertices a frame; the
   example's dashboard takes about 25,000 with four charts hovered, most of them
   in the round joins of its smooth lines. Dashed grids cost a quad per dash, so
