@@ -213,27 +213,11 @@ AppKit has no mapping for `log` and keeps the native scroll role (see below).
 | Rows measured by the list | Not possible: heights come from the application, which re-anchors by passing new ones to `remeasure_rows`/`remeasure`. |
 | Wheel chaining to an ancestor at the edges | The backends' own behavior. |
 
-## Requested changes to shared code
+## Platform notes
 
-- **AppKit: `scroll_offset` during reconciliation.** In
-  `appkit/ui_macos_darwin.v` the `.scroll` branch of reconciliation records the
-  new id in `scroll_ids` and resizes the document view before `st.views[el.id]`
-  is set at the end of the function. A Scroll element whose id changed and whose
-  content shrank posts a bounds change from `native_size_scroll_document`;
-  `on_scroll` then reports the new id, and `scroll_offset(id)` returns 0 because
-  `st.views` does not know it yet. The scroller takes a transient report of 0
-  (the next report puts it right, but it can start a history load). Setting
-  `st.views[el.id]` before sizing the document, or reading the clip view in
-  `scroll_offset` through `scroll_ids`, would fix it.
-- **AppKit: tall text fields in a dark theme.** A filled `text_field` with a
-  radius taller than the native bezel (the 40-point composer in the example)
-  shows the bezeled `NSTextField`'s own rounded bezel as a second, inner frame
-  inside the declared fill in dark appearance.
-- **AppKit role mapping:** `log` (to `NSAccessibilityGroupRole`, as for
-  `status`).
-- **Win32** leaves no room below a Scroll element's content, where AppKit,
-  UIKit and the custom renderer leave 16 points. The scroller copes (the
-  backend clamps the extra), but the backends disagree.
+- Win32 leaves no room below a Scroll element's content, where AppKit, UIKit
+  and the custom renderer leave 16 points. The scroller copes (the backend
+  clamps the extra).
 
 ## Verification
 

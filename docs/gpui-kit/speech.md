@@ -309,15 +309,6 @@ normally, as upstream.
 | Inserting the final text into an input | `speech_insertion`/`speech_dictate`: caret or selection, UTF-16 offsets, script-aware spacing |
 | Localized tooltip and accessible name | English strings; `tooltip` and `accessibility_label` replace them |
 
-## Requested changes to shared files
-
-- `third_party/gpui-kit/NOTICE.md` should list `ui/component_speech.v`
-  (`speech/state.rs` session lifecycle and `speech/level.rs` meter, phrase
-  spacing and `starts_over` of `speech/system/macos.rs`), `ui/speech.v` (result
-  handling of `speech/system/macos.rs`) and `ui/component_speech_test.v` (the
-  phrase spacing and utterance reset cases of `speech/system/macos.rs`).
-- No role mapping is needed: the views use `button`, `img` and `status`.
-
 ## Verification
 
 ```sh

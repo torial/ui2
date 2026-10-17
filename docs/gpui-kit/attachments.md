@@ -206,20 +206,8 @@ group.
   them, again because nothing clips it on the custom renderer.
 - The edge fades are ordinary views over the row's ends. On AppKit they take
   clicks and wheel events there; scroll the row to reach what they cover.
-
-## Requested changes to shared code
-
-- **Custom renderer: scroller colors.** `draw_scrollbar` and
-  `draw_scrollbar_x` in `ui/ui_immediate.c.v` use fixed light colors
-  (`0xf1f5f9`, `0xcbd5e1`), so a scrolling row on a dark theme shows a light bar.
-- **Custom renderer: overlay scrollers.** The custom renderer always shows an
-  overflowing scroll's bar, while AppKit's fades out; the attachment row
-  leaves 12 px for it.
-- **NOTICE.** `ui/component_attachments.v` adapts the size geometry, status
-  rules and scrim strengths of `crates/component/src/attachment.rs` and carries
-  the Apache-2.0 header; `ui/component_attachments_test.v` adapts its status
-  rule cases. List both under `third_party/gpui-kit`.
-- **Tracker.** `docs/gpui-kit-migration.md` can mark Attachment done.
+- The custom renderer shows an overflowing scroll's bar all the time, where
+  AppKit's fades out, so the attachment row leaves 12 points for it.
 
 ## Verification
 
