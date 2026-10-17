@@ -82,3 +82,13 @@ fn test_box_rounded_border_needs_a_radius_and_even_sides() {
 	assert box_rounded_border(BoxStyle{ ...even, border_bottom: 1 }) == 0
 	assert box_rounded_border(BoxStyle{ radius: 8 }) == 0
 }
+
+fn test_zero_lines_reach_the_renderers_as_unlimited() {
+	wrapped := label('l', 'text', rect(0, 0, 10, 10), TextStyle{ lines: 0 })
+	single := label('s', 'text', rect(0, 0, 10, 10), TextStyle{})
+	root := apply_widget_animations(screen(0xffffff, [wrapped, single,
+		label('n', 'text', rect(0, 0, 10, 10), TextStyle{ lines: -3 })]))
+	assert root.children[0].text_style.lines == text_lines_unlimited
+	assert root.children[1].text_style.lines == 1
+	assert root.children[2].text_style.lines == text_lines_unlimited
+}

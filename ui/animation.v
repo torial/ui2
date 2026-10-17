@@ -742,9 +742,12 @@ fn apply_widget_animation_node(declared Element, now i64, mut pending []PendingA
 	for child in declared.children {
 		children << apply_widget_animation_node(child, now, mut pending)
 	}
+	// Every backend renders what this pass returns, so `lines: 0` ("as many lines
+	// as fit") is resolved here once instead of in each backend's text code.
 	mut result := Element{
 		...declared
-		children: children
+		children:   children
+		text_style: text_style_with_line_budget(declared.text_style)
 	}
 	if declared.id.len == 0 {
 		return result
@@ -1321,4 +1324,18 @@ fn reset_widget_animations() {
 	runtime.runs = map[string]AnimationRun{}
 	runtime.driver_running = false
 	runtime.mutex.unlock()
+}
+
+// text_lines_unlimited is the line budget `lines: 0` stands for: more than any
+// frame shows, so text wraps until it runs out or the frame cuts it off.
+const text_lines_unlimited = 10000
+
+fn text_style_with_line_budget(style TextStyle) TextStyle {
+	if style.lines > 0 {
+		return style
+	}
+	return TextStyle{
+		...style
+		lines: text_lines_unlimited
+	}
 }

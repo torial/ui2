@@ -739,7 +739,7 @@ fn test_named_icon_geometry_tint_and_accessibility() {
 	custom := named_icon(symbol: 'tag', frame: rect(0, 0, 16, 16)) or { panic(err) }
 	assert custom.image_path == 'symbol:tag'
 	assert custom.accessibility_label == 'tag'
-	if _ := named_icon(symbol: 'heart.fill') {
+	if _ := named_icon(symbol: 'no.such.glyph') {
 		assert false, 'symbol without a glyph on every backend accepted'
 	}
 	if _ := named_icon(pixel_size: math.nan()) {

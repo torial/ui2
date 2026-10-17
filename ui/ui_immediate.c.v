@@ -2891,9 +2891,8 @@ fn page_focused_text_area(direction int) {
 		if el.hidden {
 			return
 		}
-		if el.kind == .image
-			|| (el.kind == .button && el.image_path.trim_space().len > 0
-			&& !el.image_path.starts_with('symbol:')) {
+		if (el.kind == .image || (el.kind == .button && el.image_path.trim_space().len > 0))
+			&& !el.image_path.starts_with('symbol:') {
 			cache_image(el.image_path)
 		}
 		for child in el.children {
@@ -2939,10 +2938,40 @@ fn page_focused_text_area(direction int) {
 	fn draw_rect(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, radius f64) {
 		c := hex_color(color_hex)
 		if radius > 0 {
-			ctx.draw_rounded_rect_filled(f32(x), f32(y), f32(w), f32(h), f32(radius), c)
+			fill_rounded_rect(ctx, x, y, w, h, radius, c)
 		} else {
 			ctx.draw_rect_filled(f32(x), f32(y), f32(w), f32(h), c)
 		}
+	}
+
+	// fill_rounded_rect fills a rounded rectangle as a fan from its center. gg's
+	// own spends a fixed few hundred vertices on each one whatever its size, and
+	// sokol-gl draws at most 65536 a frame, so a window full of rounded controls
+	// came out blank; here each corner gets as many segments as its radius needs
+	// to look round, from 2 to 16.
+	fn fill_rounded_rect(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, c gg.Color) {
+		if w <= 0 || h <= 0 {
+			return
+		}
+		r := math.max(0, math.min(radius, math.min(w, h) / 2))
+		scale := f64(ctx.scale)
+		segments := int(math.min(math.max(math.sqrt(r * scale) * 1.5, 2), 16))
+		points := rounded_outline(x, y, w, h, r, segments)
+		if c.a != 255 {
+			sgl.load_pipeline(ctx.pipeline.alpha)
+		}
+		sgl.c4b(c.r, c.g, c.b, c.a)
+		cx := f32((x + w / 2) * scale)
+		cy := f32((y + h / 2) * scale)
+		sgl.begin_triangles()
+		for i in 0 .. points.len {
+			a := points[i]
+			b := points[(i + 1) % points.len]
+			sgl.v2f(cx, cy)
+			sgl.v2f(f32(a[0] * scale), f32(a[1] * scale))
+			sgl.v2f(f32(b[0] * scale), f32(b[1] * scale))
+		}
+		sgl.end()
 	}
 
 	fn draw_rect_alpha(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, alpha f64, radius f64) {
@@ -2954,7 +2983,7 @@ fn page_focused_text_area(direction int) {
 			a: u8(math.round(unit_clamp(alpha) * 255))
 		}
 		if radius > 0 {
-			ctx.draw_rounded_rect_filled(f32(x), f32(y), f32(w), f32(h), f32(radius), c)
+			fill_rounded_rect(ctx, x, y, w, h, radius, c)
 		} else {
 			ctx.draw_rect_filled(f32(x), f32(y), f32(w), f32(h), c)
 		}
@@ -2995,7 +3024,7 @@ fn page_focused_text_area(direction int) {
 			draw_rect_alpha(ctx, sx, sy, sw, sh, shadow.color, opacity, sr)
 			return
 		}
-		steps := int(math.min(math.max(blur / 2 + 2, 3), 10))
+		steps := int(math.min(math.max(blur / 3 + 2, 3), 6))
 		per_layer := 1 - math.pow(1 - opacity, 1.0 / f64(steps))
 		for i in 0 .. steps {
 			grow := blur / 2 - blur * f64(i) / f64(steps - 1)
@@ -3033,18 +3062,21 @@ fn page_focused_text_area(direction int) {
 		line := gradient_line(gradient.angle, w, h)
 		r := math.max(0, math.min(radius, math.min(w, h) / 2))
 		scale := f64(ctx.scale)
-		cell := 4.0
+		// About 16 cells each way, whatever the size, keeps a gradient to a few
+		// thousand vertices of sokol-gl's 65536 a frame.
+		cell_w := math.max(4.0, w / 16)
+		cell_h := math.max(4.0, (h - 2 * r) / 16)
+		corner_step := math.max(1.0, r / 8)
 		sgl.load_pipeline(ctx.pipeline.alpha)
 		sgl.begin_quads()
 		mut top := 0.0
 		for top < h {
-			// Rows are a point tall across the rounded corners, where the edge
-			// curves, and a cell tall elsewhere.
-			step := if top < r || top + cell > h - r { 1.0 } else { cell }
+			// Rows are short across the rounded corners, where the edge curves.
+			step := if top < r || top + cell_h > h - r { corner_step } else { cell_h }
 			bottom := math.min(top + step, h)
 			inset_top := rounded_inset(top, h, r)
 			inset_bottom := rounded_inset(bottom, h, r)
-			columns := int(math.ceil(w / cell))
+			columns := int(math.ceil(w / cell_w))
 			for c in 0 .. columns {
 				f0 := f64(c) / f64(columns)
 				f1 := f64(c + 1) / f64(columns)

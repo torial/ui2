@@ -16,6 +16,9 @@ Each carries an SPDX header naming it.
 | `ui/component_choice_rating.v` | The rating click rule of `crates/component/src/rating.rs` (clicking a filled star sets the value to the star before it). |
 | `ui/component_inputs_number.v` | The stepping rules of `step_value` in `crates/base/src/number_input.rs`. |
 | `ui/component_inputs_test.v` | Some number-input stepping cases from the same file, beside new tests. |
+| `ui/component_feedback_progress.v` | Size presets, the track opacity, the stroke formula, both loading curves and the reduced-motion inset of `crates/component/src/progress/progress.rs` and `progress_circle.rs`. |
+| `ui/component_feedback_shimmer.v` | Spread clamping, band center and padding, layered widths and the highlight-color rule of `crates/component/src/shimmer.rs`. |
+| `ui/component_feedback_test.v` | Shimmer spread, band and highlight cases from the same file, beside new tests. |
 
 Every other component implementation is new V code following the GPUI Kit
 catalog's documented concepts, not copied Rust. It, the examples and the

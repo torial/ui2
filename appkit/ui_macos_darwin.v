@@ -116,6 +116,7 @@ mut:
 	scroll_ids          map[u64]string // NSClipView pointer -> Scroll element id
 	pointer_ids         map[u64]string // NSView pointer -> element id
 	hover_ids           map[u64]string // NSView pointer -> action of a hoverable element
+	image_symbols       map[u64]string // NSImageView pointer -> the symbol and tint it shows
 	hovered             []string       // hovered actions, outermost first
 	hover_window_point  macos.Point    // last pointer location, window coordinates
 	hover_root_point    macos.Point    // the same in the root view's coordinates
@@ -1672,6 +1673,7 @@ fn unregister_node(key string, native NativeView, kind Kind, text_direct bool) {
 		st.pointer_button_id = ''
 	}
 	st.pointer_ids.delete(pointer)
+	st.image_symbols.delete(pointer)
 	st.pointer_clickable.delete(pointer)
 	st.pointer_buttons.delete(pointer)
 	st.pointer_draggable.delete(pointer)
@@ -2131,13 +2133,23 @@ fn native_update_image(image_view NativeView, frame NativeRect, path string, rot
 		return
 	}
 	tints := macos.responds_to(image_view, 'setContentTintColor:')
+	mut st := state()
+	pointer := u64(voidptr(image_view))
 	if path.starts_with('symbol:') {
+		// Looking a symbol up and tinting it again on every refresh cost half the
+		// main thread while an animation kept the window refreshing.
+		symbol_sig := '${path}:${tint}'
+		if (st.image_symbols[pointer] or { '' }) == symbol_sig {
+			return
+		}
+		st.image_symbols[pointer] = symbol_sig
 		macos.msg_void1(image_view, 'setImage:', native_image_from_name(path))
 		if tints {
 			macos.msg_void1(image_view, 'setContentTintColor:', native_color(tint))
 		}
 		return
 	}
+	st.image_symbols.delete(pointer)
 	if tints {
 		macos.msg_void1(image_view, 'setContentTintColor:', macos.Id(unsafe { nil }))
 	}

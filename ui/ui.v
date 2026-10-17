@@ -285,7 +285,7 @@ pub:
 	head_indent        f64
 	first_line_indent  f64
 	hyphenation_factor f64
-	lines              int = 1
+	lines              int = 1 // most lines to wrap onto; 0 wraps as many as the frame shows
 }
 
 pub struct TextRun {

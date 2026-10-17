@@ -269,6 +269,8 @@ fn native_accessibility_role(role string) macos.Id {
 		// A tab is a pressable choice among its siblings, as a radio is.
 		'tab', 'radio' { macos.nsstring('AXRadioButton') }
 		'radiogroup' { macos.nsstring('AXRadioGroup') }
+		'menu' { macos.nsstring('AXMenu') }
+		'menuitem', 'menuitemcheckbox', 'menuitemradio' { macos.nsstring('AXMenuItem') }
 		'list' { macos.nsstring('AXList') }
 		else { if role.starts_with('AX') { macos.nsstring(role) } else { objc_nil() } }
 	}

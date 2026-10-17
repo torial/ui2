@@ -163,7 +163,7 @@ exists; **Planned** — scheduled for the named batch. Per-group details live in
 | form | — | Planned (batch 6) |  |
 | group-box | `group_box` | Done (batch 1) |  |
 | hover-card | — | Planned (batch 3) |  |
-| icon | — | In progress (batch 2) |  |
+| icon | `named_icon`, `IconName`, `symbol:` images | Done (batch 2) | [feedback](gpui-kit/feedback.md) |
 | image | `image` | Existing | Feature audit pending |
 | index | — | Not applicable | Upstream documentation landing page |
 | input-group | `input_group` | Done (batch 2) | [inputs](gpui-kit/inputs.md) |
@@ -181,7 +181,7 @@ exists; **Planned** — scheduled for the named batch. Per-group details live in
 | pagination | `pagination` | Done (batch 1) |  |
 | plot | — | Planned (batch 9) |  |
 | popover | — | Planned (batch 3) |  |
-| progress | `progress_bar` | Partial | Circular progress in batch 2 |
+| progress | `progress_bar`, `linear_progress`, `progress_circle` | Done (batch 2) | [feedback](gpui-kit/feedback.md) |
 | questionnaire | — | Planned (batch 7) |  |
 | radio | `radio`, `radio_group` | Done (batch 2) | [choice](gpui-kit/choice.md) |
 | rating | `rating` | Done (batch 2) | [choice](gpui-kit/choice.md) |
@@ -191,12 +191,12 @@ exists; **Planned** — scheduled for the named batch. Per-group details live in
 | select | `dropdown`, `spinner` | Partial | Searchable select in batch 5 |
 | settings | — | Planned (batch 6) |  |
 | sheet | — | Planned (batch 3) |  |
-| shimmer | — | In progress (batch 2) |  |
+| shimmer | `shimmer`, `shimmer_text` | Done (batch 2) | [feedback](gpui-kit/feedback.md) |
 | sidebar | — | Planned (batch 6) |  |
 | skeleton | `skeleton` | Done (batch 1) |  |
 | slider | `slider` | Existing | Feature audit pending |
 | speech | — | Planned (batch 7) | Needs platform speech recognition |
-| spinner | — | In progress (batch 2) | `spinner` is ui2's selection control |
+| spinner | `loading_spinner` | Done (batch 2) | `spinner` is ui2's selection control; [feedback](gpui-kit/feedback.md) |
 | status-bar | — | Planned (batch 6) |  |
 | stepper | `stepper` | Done (batch 2) | [choice](gpui-kit/choice.md) |
 | switch | `switch_control` | Existing |  |

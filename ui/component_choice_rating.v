@@ -59,23 +59,10 @@ pub fn rating_width(max int, size ComponentSize) f64 {
 	return f64(math.max(max, 0)) * rating_star_size(component_metrics(size))
 }
 
-// rating_star draws one star filling frame. Apple's system fonts draw ★ at
-// full size, while SF Symbols' `star` is an outline; the custom renderer's
-// Noto Sans Symbols 2 draws ★ at half size, while its `star` glyph (Material
-// Icons, also used by native Windows) is filled. Each renderer therefore gets
-// the filled star it draws well.
+// rating_star draws one star filling frame: the solid `star.fill` symbol on
+// every renderer, in the color that says whether it is lit.
 fn rating_star(frame Rect, color u32) Element {
-	$if ui2_custom_rendering ? {
-		return choice_icon('star', frame, color)
-	} $else $if macos || ios {
-		return label('', '★', frame, TextStyle{
-			color: color
-			size:  math.max(1.0, frame.height * 0.8)
-			align: .center
-		})
-	} $else {
-		return choice_icon('star', frame, color)
-	}
+	return choice_icon('star.fill', frame, color)
 }
 
 fn rating_label(value int, max int) string {
