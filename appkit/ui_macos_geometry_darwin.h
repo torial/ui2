@@ -58,3 +58,34 @@ static inline void ui2_macos_add_tracking_area(void* view) {
 	((void (*)(void*, void*, void*))objc_msgSend)(view, sel_registerName("addTrackingArea:"), area);
 	((void (*)(void*, void*))objc_msgSend)(area, sel_registerName("release"));
 }
+
+// CALayer's shadowOpacity is a float, which the bridge's double setters would
+// pass in the wrong register width.
+static inline void ui2_macos_msg_void_float(void* obj, void* sel, float value) {
+	((void (*)(void*, void*, float))objc_msgSend)(obj, sel, value);
+}
+
+// Declared here rather than through CoreGraphics' headers, which tcc cannot read.
+// CGRect is four CGFloats, laid out like ui2_macos_rect.
+extern void* CGPathCreateWithRoundedRect(ui2_macos_rect rect, double corner_width,
+	double corner_height, const void* transform);
+extern void CGPathRelease(void* path);
+
+// Gives a layer the rounded-rectangle shadow path of a box, so CoreAnimation draws
+// the shadow from that shape instead of from the layer's rendered content, which a
+// transparent box does not have. CGPathCreateWithRoundedRect rejects corners
+// larger than half a side, so the radius is clamped.
+static inline void ui2_macos_set_shadow_path(void* layer, double x, double y, double width,
+		double height, double radius) {
+	void* set = sel_registerName("setShadowPath:");
+	if (width <= 0 || height <= 0) {
+		((void (*)(void*, void*, void*))objc_msgSend)(layer, set, (void*)0);
+		return;
+	}
+	double limit = (width < height ? width : height) / 2;
+	double r = radius < 0 ? 0 : (radius > limit ? limit : radius);
+	ui2_macos_rect rect = { x, y, width, height };
+	void* path = CGPathCreateWithRoundedRect(rect, r, r, (void*)0);
+	((void (*)(void*, void*, void*))objc_msgSend)(layer, set, path);
+	CGPathRelease(path);
+}

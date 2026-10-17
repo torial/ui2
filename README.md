@@ -477,6 +477,48 @@ fn save_card(id string, action string, frame ui2.Rect) ui2.Element {
 already exists. `button_view` and `with_button_behavior` leave the raw
 `clickable` flag unset.
 
+## Box effects
+
+`BoxStyle` can fade, shade and color a box beyond its solid `bg`:
+
+```v
+card := ui2.view('card', ui2.rect(20, 20, 280, 160), ui2.BoxStyle{
+	bg:     0xffffff
+	radius: 12
+	shadow: ui2.box_shadow(0x000000, 0.18, 24, 8) // color, opacity, blur, y offset
+}, children)
+
+backdrop := ui2.view('backdrop', ui2.rect(0, 0, w, h), ui2.BoxStyle{
+	bg:      0x000000
+	opacity: 0.4 // the fill only; borders and children keep theirs
+}, [])
+
+banner := ui2.view('banner', ui2.rect(0, 0, w, 120), ui2.BoxStyle{
+	gradient: ui2.linear_gradient(90, ui2.gradient_stop(0x2563eb, 0),
+		ui2.gradient_stop(0x9333ea, 1))
+}, [])
+```
+
+- `opacity` (0 to 1) fades the fill and nothing else.
+- `gradient` replaces `bg` on a view with a linear gradient: `angle` in degrees
+  (0 runs left to right, 90 top to bottom) and two or more stops, each with a
+  position from 0 to 1 and an optional opacity. Like CSS `linear-gradient`, it
+  spans the box corner to corner along its angle. Buttons keep their solid fill
+  (a native button draws its title beneath any gradient layer); make a gradient
+  button from a view with `button_behavior`.
+- `shadow` draws a drop shadow beneath the box: `color`, `opacity`, `blur`,
+  offset `x`/`y` and `spread`, as in CSS `box-shadow`. A box that casts a shadow
+  does not clip its children to its rounded corners on AppKit and UIKit, since a
+  layer masking to its bounds masks its shadow away too.
+
+All three are animatable through `animation_number_property('box.opacity', ...)`
+and the like. AppKit and UIKit use CoreAnimation (`NSShadow`/layer shadows and a
+`CAGradientLayer`), and the custom renderer draws them itself. Windows draws
+fill opacity and gradients with `AlphaBlend` and `GradientFill`, but not a
+gradient's per-stop opacity, and it draws no shadows: Win32 child windows cannot
+paint outside themselves. Screenshots taken with `UI2_SCREENSHOT_PATH` on AppKit
+do not show CoreAnimation shadows, which `cacheDisplayInRect:` does not render.
+
 ## Backend capabilities
 
 Call `control_support(kind)` to query support. macOS implements every shared

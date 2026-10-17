@@ -10,6 +10,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	import math
 	import os
 	import sokol.sapp
+	import sokol.sgl
 	import time
 
 	struct HitTarget {
@@ -2217,9 +2218,7 @@ fn page_focused_text_area(direction int) {
 			.view {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				if !el.box.transparent {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
-				}
+				draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				if el.enabled && element_action_id(el).len > 0
 					&& (el.clickable || el.button_behavior || el.draggable || el.long_press
@@ -2337,8 +2336,12 @@ fn page_focused_text_area(direction int) {
 				if el.native_style && el.box.bg == unstyled_box_bg {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, el.box.radius,
 						el.enabled)
-				} else if box_draws_fill(el.box) {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
+				} else {
+					// Gradients fill views; a button keeps its solid fill, as natively.
+					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, BoxStyle{
+						...el.box
+						gradient: Gradient{}
+					})
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				image_layout := button_image_layout(el.frame.width, el.frame.height, el.text,
@@ -2391,8 +2394,11 @@ fn page_focused_text_area(direction int) {
 				if el.native_style && box.bg == unstyled_box_bg {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, box.radius,
 						el.enabled)
-				} else if box_draws_fill(box) {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, box.bg, box.radius)
+				} else {
+					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, BoxStyle{
+						...box
+						gradient: Gradient{}
+					})
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, box)
 				shortened := draw_text_centered(ctx, el.text, x, y, el.frame.width, el.frame.height,
@@ -2937,6 +2943,129 @@ fn page_focused_text_area(direction int) {
 		} else {
 			ctx.draw_rect_filled(f32(x), f32(y), f32(w), f32(h), c)
 		}
+	}
+
+	fn draw_rect_alpha(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, alpha f64, radius f64) {
+		if w <= 0 || h <= 0 || alpha <= 0 {
+			return
+		}
+		c := gg.Color{
+			...hex_color(color_hex)
+			a: u8(math.round(unit_clamp(alpha) * 255))
+		}
+		if radius > 0 {
+			ctx.draw_rounded_rect_filled(f32(x), f32(y), f32(w), f32(h), f32(radius), c)
+		} else {
+			ctx.draw_rect_filled(f32(x), f32(y), f32(w), f32(h), c)
+		}
+	}
+
+	// draw_box_fill paints what a BoxStyle puts beneath its borders: the drop
+	// shadow, then the gradient or the solid color at the box's fill opacity.
+	fn draw_box_fill(ctx &gg.Context, x f64, y f64, w f64, h f64, box BoxStyle) {
+		if box_has_shadow(box) {
+			draw_box_shadow(ctx, x, y, w, h, box.radius, box.shadow)
+		}
+		opacity := box_fill_opacity(box)
+		if opacity <= 0 {
+			return
+		}
+		if box_has_gradient(box) {
+			draw_gradient_rect(ctx, x, y, w, h, box.radius, box.gradient, opacity)
+		} else if opacity >= 1 {
+			draw_rect(ctx, x, y, w, h, box.bg, box.radius)
+		} else {
+			draw_rect_alpha(ctx, x, y, w, h, box.bg, opacity, box.radius)
+		}
+	}
+
+	// draw_box_shadow stands in for a Gaussian blur with a stack of translucent
+	// rounded rectangles, from `blur / 2` outside the shadow's edge to `blur / 2`
+	// inside it. Where k of the n layers overlap the alpha is 1 - (1 - a)^k, so
+	// it rises across the blur and reaches the shadow's opacity inside it.
+	fn draw_box_shadow(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, shadow BoxShadow) {
+		opacity := unit_clamp(shadow.opacity)
+		sx := x + shadow.x - shadow.spread
+		sy := y + shadow.y - shadow.spread
+		sw := w + 2 * shadow.spread
+		sh := h + 2 * shadow.spread
+		sr := math.max(radius + shadow.spread, 0)
+		blur := if math.is_nan(shadow.blur) { 0.0 } else { math.max(shadow.blur, 0) }
+		if blur < 1 {
+			draw_rect_alpha(ctx, sx, sy, sw, sh, shadow.color, opacity, sr)
+			return
+		}
+		steps := int(math.min(math.max(blur / 2 + 2, 3), 10))
+		per_layer := 1 - math.pow(1 - opacity, 1.0 / f64(steps))
+		for i in 0 .. steps {
+			grow := blur / 2 - blur * f64(i) / f64(steps - 1)
+			layer_w := sw + 2 * grow
+			layer_h := sh + 2 * grow
+			if layer_w <= 0 || layer_h <= 0 {
+				continue
+			}
+			layer_r := math.min(math.max(sr + grow, 0), math.min(layer_w, layer_h) / 2)
+			draw_rect_alpha(ctx, sx - grow, sy - grow, layer_w, layer_h, shadow.color, per_layer,
+				layer_r)
+		}
+	}
+
+	// rounded_inset is how far in from the side a rounded box's edge is at height
+	// `y` from its top, for corner radius r.
+	fn rounded_inset(y f64, h f64, r f64) f64 {
+		dy := if y < r { r - y } else if y > h - r { y - (h - r) } else { 0.0 }
+		if dy <= 0 || r <= 0 {
+			return 0
+		}
+		return r - math.sqrt(math.max(r * r - dy * dy, 0))
+	}
+
+	// draw_gradient_rect fills a (rounded) box with a linear gradient. The box is
+	// cut into rows that follow its rounded edge and the rows into small cells,
+	// each a quad whose corners take the gradient's color there; the GPU blends
+	// across a cell, which is exact for a gradient between two stops and close for
+	// more.
+	fn draw_gradient_rect(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, gradient Gradient, opacity f64) {
+		if w <= 0 || h <= 0 {
+			return
+		}
+		stops := gradient_sorted_stops(gradient)
+		line := gradient_line(gradient.angle, w, h)
+		r := math.max(0, math.min(radius, math.min(w, h) / 2))
+		scale := f64(ctx.scale)
+		cell := 4.0
+		sgl.load_pipeline(ctx.pipeline.alpha)
+		sgl.begin_quads()
+		mut top := 0.0
+		for top < h {
+			// Rows are a point tall across the rounded corners, where the edge
+			// curves, and a cell tall elsewhere.
+			step := if top < r || top + cell > h - r { 1.0 } else { cell }
+			bottom := math.min(top + step, h)
+			inset_top := rounded_inset(top, h, r)
+			inset_bottom := rounded_inset(bottom, h, r)
+			columns := int(math.ceil(w / cell))
+			for c in 0 .. columns {
+				f0 := f64(c) / f64(columns)
+				f1 := f64(c + 1) / f64(columns)
+				xt0 := inset_top + (w - 2 * inset_top) * f0
+				xt1 := inset_top + (w - 2 * inset_top) * f1
+				xb0 := inset_bottom + (w - 2 * inset_bottom) * f0
+				xb1 := inset_bottom + (w - 2 * inset_bottom) * f1
+				gradient_vertex(line, stops, opacity, x, y, xt0, top, scale)
+				gradient_vertex(line, stops, opacity, x, y, xt1, top, scale)
+				gradient_vertex(line, stops, opacity, x, y, xb1, bottom, scale)
+				gradient_vertex(line, stops, opacity, x, y, xb0, bottom, scale)
+			}
+			top = bottom
+		}
+		sgl.end()
+	}
+
+	fn gradient_vertex(line GradientLine, stops []GradientStop, opacity f64, ox f64, oy f64, lx f64, ly f64, scale f64) {
+		color, alpha := gradient_color_at(stops, gradient_position(line, lx, ly))
+		sgl.c4b(u8((color >> 16) & 0xff), u8((color >> 8) & 0xff), u8(color & 0xff), u8(math.round(alpha * opacity * 255)))
+		sgl.v2f(f32((ox + lx) * scale), f32((oy + ly) * scale))
 	}
 
 	fn draw_outline(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, radius f64) {

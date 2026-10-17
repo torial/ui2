@@ -1448,6 +1448,87 @@ static inline void ui2_win_fill_background(HDC dc, const RECT *rect,
 	DeleteObject(brush);
 }
 
+// One vertex of a gradient mesh: a point in the box and its color there.
+typedef struct ui2_win_mesh_vertex {
+	int x;
+	int y;
+	unsigned int color;
+} ui2_win_mesh_vertex;
+
+// Fills a box with a solid color or a gradient mesh at `opacity`, over whatever
+// the DC already holds (the parent's backdrop). Translucency and gradients are
+// drawn into an offscreen bitmap and blended in, clipped to the rounded corners.
+// GradientFill writes colors without blending, so a gradient's own stop opacity
+// is not drawn; the box's fill opacity is.
+static inline void ui2_win_fill_box(HDC dc, const RECT *rect, unsigned int background,
+		double radius, double opacity, const ui2_win_mesh_vertex *vertices, int vertex_count,
+		const unsigned int *triangles, int triangle_count) {
+	if (opacity <= 0.0) return;
+	int width = rect->right - rect->left;
+	int height = rect->bottom - rect->top;
+	if (width <= 0 || height <= 0) return;
+	if (opacity >= 1.0 && vertex_count == 0) {
+		ui2_win_fill_background(dc, rect, background, radius);
+		return;
+	}
+	HDC memory = CreateCompatibleDC(dc);
+	HBITMAP bitmap = CreateCompatibleBitmap(dc, width, height);
+	if (memory == NULL || bitmap == NULL) {
+		if (bitmap != NULL) DeleteObject(bitmap);
+		if (memory != NULL) DeleteDC(memory);
+		ui2_win_fill_background(dc, rect, background, radius);
+		return;
+	}
+	HGDIOBJ old_bitmap = SelectObject(memory, bitmap);
+	RECT local = { 0, 0, width, height };
+	if (vertex_count > 0 && triangle_count > 0) {
+		TRIVERTEX *mesh = (TRIVERTEX *)HeapAlloc(GetProcessHeap(), 0,
+			(size_t)vertex_count * sizeof(TRIVERTEX));
+		if (mesh != NULL) {
+			for (int i = 0; i < vertex_count; i++) {
+				unsigned int color = vertices[i].color;
+				mesh[i].x = vertices[i].x;
+				mesh[i].y = vertices[i].y;
+				mesh[i].Red = (COLOR16)(((color >> 16) & 0xff) << 8);
+				mesh[i].Green = (COLOR16)(((color >> 8) & 0xff) << 8);
+				mesh[i].Blue = (COLOR16)((color & 0xff) << 8);
+				mesh[i].Alpha = 0xff00;
+			}
+			GradientFill(memory, mesh, (ULONG)vertex_count, (PVOID)triangles, (ULONG)triangle_count,
+				GRADIENT_FILL_TRIANGLE);
+			HeapFree(GetProcessHeap(), 0, mesh);
+		}
+	} else {
+		HBRUSH brush = CreateSolidBrush(ui2_win_color(background));
+		if (brush != NULL) {
+			FillRect(memory, &local, brush);
+			DeleteObject(brush);
+		}
+	}
+	HRGN clip = NULL;
+	if (radius > 0.5) {
+		int diameter = (int)(radius * 2.0 + 0.5);
+		POINT origin = { 0, 0 };
+		GetViewportOrgEx(dc, &origin);
+		clip = CreateRoundRectRgn(rect->left + origin.x, rect->top + origin.y,
+			rect->right + origin.x + 1, rect->bottom + origin.y + 1, diameter, diameter);
+		if (clip != NULL) ExtSelectClipRgn(dc, clip, RGN_AND);
+	}
+	if (opacity >= 1.0) {
+		BitBlt(dc, rect->left, rect->top, width, height, memory, 0, 0, SRCCOPY);
+	} else {
+		BLENDFUNCTION blend = { AC_SRC_OVER, 0, (BYTE)(opacity * 255.0 + 0.5), 0 };
+		AlphaBlend(dc, rect->left, rect->top, width, height, memory, 0, 0, width, height, blend);
+	}
+	if (clip != NULL) {
+		SelectClipRgn(dc, NULL);
+		DeleteObject(clip);
+	}
+	SelectObject(memory, old_bitmap);
+	DeleteObject(bitmap);
+	DeleteDC(memory);
+}
+
 static inline void ui2_win_paint_parent_background(HWND hwnd, HDC dc) {
 	HWND parent = GetParent(hwnd);
 	if (parent == NULL) return;
@@ -1463,10 +1544,12 @@ static inline void ui2_win_paint_parent_background(HWND hwnd, HDC dc) {
 	}
 }
 
-static inline void ui2_win_paint_background_into(void *hwnd_ptr, void *dc_ptr,
+static inline void ui2_win_paint_background_into_fx(void *hwnd_ptr, void *dc_ptr,
 		unsigned int background, double radius, int transparent,
 		unsigned int border_color, double border_left, double border_top,
-		double border_right, double border_bottom) {
+		double border_right, double border_bottom, double opacity,
+		const ui2_win_mesh_vertex *vertices, int vertex_count,
+		const unsigned int *triangles, int triangle_count) {
 	HWND hwnd = (HWND)hwnd_ptr;
 	HDC dc = (HDC)dc_ptr;
 	if (hwnd == NULL || dc == NULL) return;
@@ -1485,7 +1568,8 @@ static inline void ui2_win_paint_background_into(void *hwnd_ptr, void *dc_ptr,
 		ui2_win_fill_background(dc, &rect, background, 0.0);
 	}
 	if (!transparent) {
-		ui2_win_fill_background(dc, &rect, background, radius);
+		ui2_win_fill_box(dc, &rect, background, radius, opacity, vertices, vertex_count,
+			triangles, triangle_count);
 	}
 	HRGN clip = NULL;
 	if (radius > 0.5) {
@@ -1502,17 +1586,35 @@ static inline void ui2_win_paint_background_into(void *hwnd_ptr, void *dc_ptr,
 	}
 }
 
-static inline void ui2_win_paint_background(void *hwnd_ptr, unsigned int background,
+static inline void ui2_win_paint_background_into(void *hwnd_ptr, void *dc_ptr,
+		unsigned int background, double radius, int transparent,
+		unsigned int border_color, double border_left, double border_top,
+		double border_right, double border_bottom) {
+	ui2_win_paint_background_into_fx(hwnd_ptr, dc_ptr, background, radius, transparent,
+		border_color, border_left, border_top, border_right, border_bottom, 1.0, NULL, 0, NULL, 0);
+}
+
+static inline void ui2_win_paint_background_fx(void *hwnd_ptr, unsigned int background,
 		double radius, int transparent, unsigned int border_color, double border_left,
-		double border_top, double border_right, double border_bottom) {
+		double border_top, double border_right, double border_bottom, double opacity,
+		const ui2_win_mesh_vertex *vertices, int vertex_count, const unsigned int *triangles,
+		int triangle_count) {
 	HWND hwnd = (HWND)hwnd_ptr;
 	PAINTSTRUCT paint;
 	HDC dc = BeginPaint(hwnd, &paint);
 	if (dc != NULL) {
-		ui2_win_paint_background_into(hwnd, dc, background, radius, transparent,
-			border_color, border_left, border_top, border_right, border_bottom);
+		ui2_win_paint_background_into_fx(hwnd, dc, background, radius, transparent,
+			border_color, border_left, border_top, border_right, border_bottom, opacity,
+			vertices, vertex_count, triangles, triangle_count);
 	}
 	EndPaint(hwnd, &paint);
+}
+
+static inline void ui2_win_paint_background(void *hwnd_ptr, unsigned int background,
+		double radius, int transparent, unsigned int border_color, double border_left,
+		double border_top, double border_right, double border_bottom) {
+	ui2_win_paint_background_fx(hwnd_ptr, background, radius, transparent, border_color,
+		border_left, border_top, border_right, border_bottom, 1.0, NULL, 0, NULL, 0);
 }
 
 static inline void ui2_win_paint_transparent_button(void *hwnd_ptr,

@@ -14,6 +14,8 @@ import time
 
 #flag darwin -framework QuartzCore
 
+#flag darwin -framework CoreGraphics
+
 #include "@VMODROOT/appkit/ui_macos_geometry_darwin.h"
 
 struct C.ui2_macos_rect {
@@ -30,6 +32,10 @@ fn C.ui2_macos_msg_super_void_id(obj voidptr, superclass voidptr, sel voidptr, a
 fn C.ui2_macos_msg_id_point(obj voidptr, sel voidptr, x f64, y f64) voidptr
 
 fn C.ui2_macos_add_tracking_area(view voidptr)
+
+fn C.ui2_macos_msg_void_float(obj voidptr, sel voidptr, value f32)
+
+fn C.ui2_macos_set_shadow_path(layer voidptr, x f64, y f64, width f64, height f64, radius f64)
 
 const ns_window_style_titled = u64(1)
 const ns_window_style_closable = u64(2)
@@ -1402,7 +1408,7 @@ fn native_update_element(native NativeView, el Element, declared_text_changed bo
 		.view {
 			native_set_frame(native, element_rect(el.frame))
 			native_set_box_background(native, el.box)
-			native_set_corner_radius(native, el.box.radius)
+			native_set_box_corners(native, el.box)
 		}
 		.scroll {
 			native_set_frame(native, element_rect(el.frame))
@@ -2065,7 +2071,7 @@ fn native_new_view(frame NativeRect, box BoxStyle, interactive bool) NativeView 
 	}
 	native := macos.msg_id_rect(macos.alloc(class_name), 'initWithFrame:', appkit_rect(frame))
 	native_set_box_background(native, box)
-	native_set_corner_radius(native, box.radius)
+	native_set_box_corners(native, box)
 	return native
 }
 
@@ -2473,7 +2479,7 @@ fn native_update_button(button_view NativeView, frame NativeRect, title string, 
 		native_button_set_attributed_title(button_view, title, text_hex, size, bold, italic, underline,
 			lines)
 		native_set_box_background(button_view, box)
-		native_set_corner_radius(button_view, box.radius)
+		native_set_box_corners(button_view, box)
 	}
 	native_apply_line_limit(button_view, lines)
 	native_update_button_image(button_view, frame, image_name)
@@ -2811,14 +2817,123 @@ fn native_set_background(view NativeView, hex u32) {
 	macos.msg_void1(layer, 'setBackgroundColor:', macos.msg_id(native_color(hex), 'CGColor'))
 }
 
+// native_set_box_background paints what a BoxStyle puts beneath its borders: the
+// solid fill at its opacity or a CAGradientLayer, and the drop shadow.
 fn native_set_box_background(view NativeView, box BoxStyle) {
-	if box_draws_fill(box) {
-		native_set_background(view, box.bg)
-		return
-	}
 	macos.msg_void_bool(view, 'setWantsLayer:', true)
 	layer := macos.msg_id(view, 'layer')
-	macos.msg_void1(layer, 'setBackgroundColor:', macos.Id(unsafe { nil }))
+	transaction := macos.Id(macos.get_class('CATransaction'))
+	macos.msg_void(transaction, 'begin')
+	macos.msg_void_bool(transaction, 'setDisableActions:', true)
+	opacity := box_fill_opacity(box)
+	// A control draws its title in its own layer, beneath any sublayer, so only
+	// views take a gradient; a button keeps its solid fill.
+	gradient := box_has_gradient(box)
+		&& !macos.msg_bool_id(view, 'isKindOfClass:', macos.get_class('NSControl'))
+	if gradient {
+		macos.msg_void1(layer, 'setBackgroundColor:', macos.Id(unsafe { nil }))
+		native_set_gradient_layer(view, layer, box, opacity)
+	} else {
+		native_hide_gradient_layer(view)
+		fill := if opacity <= 0 {
+			macos.Id(unsafe { nil })
+		} else if opacity < 1 {
+			macos.msg_id(macos.msg_id_f64(native_color(box.bg), 'colorWithAlphaComponent:',
+				opacity), 'CGColor')
+		} else {
+			macos.msg_id(native_color(box.bg), 'CGColor')
+		}
+		macos.msg_void1(layer, 'setBackgroundColor:', fill)
+	}
+	native_set_layer_shadow(view, layer, box)
+	macos.msg_void(transaction, 'commit')
+}
+
+fn native_gradient_key() voidptr {
+	return voidptr(macos.sel('ui2_gradient_assoc'))
+}
+
+// The gradient is a sublayer kept behind the subviews' layers and the borders by
+// its z position, sized to the view and rounded like it, since a shadowed box
+// cannot clip its sublayers.
+fn native_set_gradient_layer(view NativeView, layer macos.Id, box BoxStyle, opacity f64) {
+	mut gradient := NativeView(macos.get_associated_object(view, native_gradient_key()))
+	if native_is_nil(gradient) {
+		gradient = macos.msg_id(macos.alloc('CAGradientLayer'), 'init')
+		macos.msg_void_f64(gradient, 'setZPosition:', -1000)
+		native_set_associated_object(view, native_gradient_key(), gradient)
+		macos.release(gradient)
+	}
+	if macos.msg_id(gradient, 'superlayer') != layer {
+		macos.msg_void1(layer, 'addSublayer:', gradient)
+	}
+	bounds := macos.msg_rect(view, 'bounds')
+	macos.msg_void_rect(gradient, 'setFrame:', bounds)
+	macos.msg_void_f64(gradient, 'setCornerRadius:', box.radius)
+	stops := gradient_sorted_stops(box.gradient)
+	colors := macos.msg_id(macos.alloc('NSMutableArray'), 'init')
+	locations := macos.msg_id(macos.alloc('NSMutableArray'), 'init')
+	for stop in stops {
+		color := macos.msg_id_f64(native_color(stop.color), 'colorWithAlphaComponent:', stop.opacity * opacity)
+		macos.msg_void1(colors, 'addObject:', macos.msg_id(color, 'CGColor'))
+		macos.msg_void1(locations, 'addObject:', macos.msg_id_f64(macos.get_class('NSNumber'),
+			'numberWithDouble:', stop.position))
+	}
+	macos.msg_void1(gradient, 'setColors:', colors)
+	macos.msg_void1(gradient, 'setLocations:', locations)
+	macos.release(colors)
+	macos.release(locations)
+	// The gradient runs along a line in the box's top-left based points; the layer
+	// takes its ends as fractions of its bounds, with y up unless the view flips it.
+	line := gradient_line(box.gradient.angle, bounds.width, bounds.height)
+	w := if bounds.width > 0 { bounds.width } else { 1.0 }
+	h := if bounds.height > 0 { bounds.height } else { 1.0 }
+	flipped := macos.msg_bool(view, 'isFlipped')
+	y0 := if flipped { line.y0 / h } else { 1 - line.y0 / h }
+	y1 := if flipped { line.y1 / h } else { 1 - line.y1 / h }
+	macos.msg_void_point(gradient, 'setStartPoint:', macos.point(line.x0 / w, y0))
+	macos.msg_void_point(gradient, 'setEndPoint:', macos.point(line.x1 / w, y1))
+	macos.msg_void_bool(gradient, 'setHidden:', false)
+}
+
+fn native_hide_gradient_layer(view NativeView) {
+	gradient := NativeView(macos.get_associated_object(view, native_gradient_key()))
+	if !native_is_nil(gradient) {
+		macos.msg_void_bool(gradient, 'setHidden:', true)
+	}
+}
+
+// A layer-backed view owns its layer's shadow through its NSShadow and resets the
+// layer's shadow opacity whenever it has none, so the shadow is given to the view.
+// The rounded shadow path then lets CoreAnimation draw it from the box's shape
+// rather than from its rendered content, which a transparent box does not have.
+fn native_set_layer_shadow(view NativeView, layer macos.Id, box BoxStyle) {
+	if !box_has_shadow(box) {
+		if !objc_is_nil(macos.msg_id(view, 'shadow')) {
+			macos.msg_void1(view, 'setShadow:', objc_nil())
+		}
+		return
+	}
+	shadow := box.shadow
+	ns_shadow := macos.msg_id(macos.alloc('NSShadow'), 'init')
+	macos.msg_void1(ns_shadow, 'setShadowColor:', macos.msg_id_f64(native_color(shadow.color),
+		'colorWithAlphaComponent:', unit_clamp(shadow.opacity)))
+	// AppKit hands the blur radius to CoreAnimation, whose radius is the blur's
+	// standard deviation: about half the CSS-style blur the box declares.
+	macos.msg_void_f64(ns_shadow, 'setShadowBlurRadius:', if shadow.blur > 0 { shadow.blur / 2 } else { 0.0 })
+	// NSShadow measures its offset upward, whatever the view's flipping.
+	macos.msg_void_point(ns_shadow, 'setShadowOffset:', macos.point(shadow.x, -shadow.y))
+	macos.msg_void1(view, 'setShadow:', ns_shadow)
+	macos.release(ns_shadow)
+	bounds := macos.msg_rect(view, 'bounds')
+	C.ui2_macos_set_shadow_path(layer, -shadow.spread, -shadow.spread, bounds.width + 2 * shadow.spread,
+		bounds.height + 2 * shadow.spread, box.radius + shadow.spread)
+}
+
+// A rounded box clips its subviews to its corners, except when it casts a shadow:
+// a layer that masks to its bounds masks its own shadow away too.
+fn native_box_clips(box BoxStyle) bool {
+	return box.radius > 0 && !box_has_shadow(box)
 }
 
 fn native_set_corner_radius(view NativeView, radius f64) {
@@ -2826,6 +2941,13 @@ fn native_set_corner_radius(view NativeView, radius f64) {
 	layer := macos.msg_id(view, 'layer')
 	macos.msg_void_f64(layer, 'setCornerRadius:', radius)
 	macos.msg_void_bool(layer, 'setMasksToBounds:', radius > 0)
+}
+
+fn native_set_box_corners(view NativeView, box BoxStyle) {
+	macos.msg_void_bool(view, 'setWantsLayer:', true)
+	layer := macos.msg_id(view, 'layer')
+	macos.msg_void_f64(layer, 'setCornerRadius:', box.radius)
+	macos.msg_void_bool(layer, 'setMasksToBounds:', native_box_clips(box))
 }
 
 fn native_set_border_layer(view NativeView, side string, frame NativeRect, color u32, visible bool) {
@@ -2869,7 +2991,7 @@ fn native_set_box_borders(view NativeView, box BoxStyle) {
 	if box.radius > 0 {
 		layer := macos.msg_id(view, 'layer')
 		macos.msg_void_f64(layer, 'setCornerRadius:', box.radius)
-		macos.msg_void_bool(layer, 'setMasksToBounds:', true)
+		macos.msg_void_bool(layer, 'setMasksToBounds:', native_box_clips(box))
 	}
 	transaction := macos.Id(macos.get_class('CATransaction'))
 	macos.msg_void(transaction, 'begin')

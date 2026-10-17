@@ -8,6 +8,8 @@ $if !ui2_custom_rendering ? {
 
 #flag windows -lgdi32
 
+#flag windows -lmsimg32
+
 #flag windows -lcomctl32
 
 #flag windows -lshell32
@@ -157,6 +159,75 @@ fn C.ui2_win_apply_control_colors(dc voidptr, foreground u32, background u32, tr
 fn C.ui2_win_paint_background(hwnd voidptr, background u32, radius f64, transparent int, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64)
 
 fn C.ui2_win_paint_background_into(hwnd voidptr, dc voidptr, background u32, radius f64, transparent int, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64)
+
+struct C.ui2_win_mesh_vertex {
+	x     int
+	y     int
+	color u32
+}
+
+fn C.ui2_win_paint_background_fx(hwnd voidptr, background u32, radius f64, transparent int, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64, opacity f64, vertices &C.ui2_win_mesh_vertex, vertex_count int, triangles &u32, triangle_count int)
+
+fn C.ui2_win_paint_background_into_fx(hwnd voidptr, dc voidptr, background u32, radius f64, transparent int, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64, opacity f64, vertices &C.ui2_win_mesh_vertex, vertex_count int, triangles &u32, triangle_count int)
+
+// WindowsGradientMesh is what GradientFill draws a box's gradient from: a grid of
+// cells whose corners take the gradient's color there, two triangles a cell.
+struct WindowsGradientMesh {
+mut:
+	vertices  []C.ui2_win_mesh_vertex
+	triangles []u32
+}
+
+fn windows_gradient_mesh(box BoxStyle, width int, height int) WindowsGradientMesh {
+	mut mesh := WindowsGradientMesh{}
+	if !box_has_gradient(box) || width <= 0 || height <= 0 {
+		return mesh
+	}
+	stops := gradient_sorted_stops(box.gradient)
+	line := gradient_line(box.gradient.angle, f64(width), f64(height))
+	cell := 8
+	columns := (width + cell - 1) / cell
+	rows := (height + cell - 1) / cell
+	for row in 0 .. rows + 1 {
+		y := if row * cell < height { row * cell } else { height }
+		for column in 0 .. columns + 1 {
+			x := if column * cell < width { column * cell } else { width }
+			color, _ := gradient_color_at(stops, gradient_position(line, f64(x), f64(y)))
+			mesh.vertices << C.ui2_win_mesh_vertex{
+				x:     x
+				y:     y
+				color: color
+			}
+		}
+	}
+	for row in 0 .. rows {
+		for column in 0 .. columns {
+			a := u32(row * (columns + 1) + column)
+			d := a + u32(columns + 1)
+			mesh.triangles << [a, a + 1, d + 1, a, d + 1, d]
+		}
+	}
+	return mesh
+}
+
+// windows_paint_box paints a view's background, fill effects included, into its
+// own paint cycle (dc nil) or into a DC a descendant asked for.
+fn windows_paint_box(hwnd voidptr, dc voidptr, box BoxStyle, transparent int) {
+	mesh := windows_gradient_mesh(box, C.ui2_win_client_width(hwnd), C.ui2_win_client_height(hwnd))
+	vertices := if mesh.vertices.len > 0 { &mesh.vertices[0] } else { unsafe { nil } }
+	triangles := if mesh.triangles.len > 0 { &mesh.triangles[0] } else { unsafe { nil } }
+	opacity := if box.transparent { 1.0 } else { box_fill_opacity(box) }
+	if dc == unsafe { nil } {
+		C.ui2_win_paint_background_fx(hwnd, box.bg, box.radius, transparent, box.border_color,
+			box.border_left, box.border_top, box.border_right, box.border_bottom, opacity,
+			vertices, mesh.vertices.len, triangles, mesh.triangles.len / 3)
+	} else {
+		C.ui2_win_paint_background_into_fx(hwnd, dc, box.bg, box.radius, transparent,
+			box.border_color, box.border_left, box.border_top, box.border_right,
+			box.border_bottom, opacity, vertices, mesh.vertices.len, triangles,
+			mesh.triangles.len / 3)
+	}
+}
 
 fn C.ui2_win_paint_transparent_button(hwnd voidptr, foreground u32, radius f64, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64)
 
@@ -2039,17 +2110,14 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 				box = st.node_boxes[key] or { return 0 }
 				kind = st.node_kinds[key] or { Kind.screen }
 			}
-			C.ui2_win_paint_background_into(hwnd, voidptr(wparam), box.bg, box.radius,
-				windows_bool(windows_draws_no_background(kind, box)), box.border_color,
-				box.border_left, box.border_top, box.border_right, box.border_bottom)
+			windows_paint_box(hwnd, voidptr(wparam), box, windows_bool(windows_draws_no_background(kind,
+				box)))
 			return 0
 		}
 		win_wm_paint {
 			if hwnd == st.root {
 				box := st.node_boxes[''] or { BoxStyle{} }
-				C.ui2_win_paint_background(hwnd, box.bg, box.radius, windows_bool(box.transparent),
-					box.border_color, box.border_left, box.border_top, box.border_right,
-					box.border_bottom)
+				windows_paint_box(hwnd, unsafe { nil }, box, windows_bool(box.transparent))
 				return 0
 			}
 			key := st.handle_keys[windows_handle_id(hwnd)] or {
@@ -2059,9 +2127,7 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			if kind == .view || kind == .scroll || windows_is_label_container(key, hwnd) {
 				box := st.node_boxes[key] or { BoxStyle{} }
 				transparent := windows_bool(windows_draws_no_background(kind, box))
-				C.ui2_win_paint_background(hwnd, box.bg, box.radius, transparent,
-					box.border_color, box.border_left, box.border_top, box.border_right,
-					box.border_bottom)
+				windows_paint_box(hwnd, unsafe { nil }, box, transparent)
 				if kind == .view {
 					binding := st.pointer_bindings[windows_handle_id(hwnd)] or {
 						WindowsPointerBinding{}

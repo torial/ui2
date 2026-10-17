@@ -323,6 +323,9 @@ pub:
 	border_top    f64
 	border_right  f64
 	border_bottom f64
+	opacity       f64 = 1.0 // fill opacity, 0 (clear) to 1; borders and children keep theirs
+	gradient      Gradient  // with two or more stops, fills the box instead of bg
+	shadow        BoxShadow // drop shadow beneath the box; none while its opacity is zero
 }
 
 // box_draws_fill is shared by native and custom renderers so every element
