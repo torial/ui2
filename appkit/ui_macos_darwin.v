@@ -2364,7 +2364,7 @@ fn native_update_label(view NativeView, frame NativeRect, text string, text_hex 
 	}))
 	if italic || underline {
 		native_control_set_attributed_title(label_view, text, text_hex, size, family, bold, italic,
-			underline)
+			underline, align, lines)
 	}
 	macos.msg_void_i64(label_view, 'setAlignment:', native_text_alignment(align))
 	native_apply_line_limit(label_view, lines)
