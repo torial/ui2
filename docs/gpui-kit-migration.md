@@ -140,7 +140,7 @@ exists; **Planned** — scheduled for the named batch. Per-group details live in
 | avatar | `avatar` | Partial | Avatar group in batch 2 |
 | badge | `badge` | Done (batch 1) |  |
 | bubble | — | Planned (batch 7) |  |
-| button | `button` | In progress (batch 2) | Variants, button group |
+| button | `styled_button`, `button_group`, `button` | Done (batch 2) | Variants and button group; [choice](gpui-kit/choice.md) |
 | calendar | — | Planned (batch 4) |  |
 | carousel | `carousel` | Existing | Feature audit pending |
 | chart | `chart` | Partial | Line, bar, scatter, pie, doughnut; area, candlestick, radar, sankey, stacking in batch 9 |
@@ -166,8 +166,8 @@ exists; **Planned** — scheduled for the named batch. Per-group details live in
 | icon | — | In progress (batch 2) |  |
 | image | `image` | Existing | Feature audit pending |
 | index | — | Not applicable | Upstream documentation landing page |
-| input-group | — | In progress (batch 2) |  |
-| input | `text_field` | Partial | Prefix, suffix and clear button in batch 2 |
+| input-group | `input_group` | Done (batch 2) | [inputs](gpui-kit/inputs.md) |
+| input | `text_field`, `input_group` | Done (batch 2) | Prefix, suffix and clear button through `input_group`; [inputs](gpui-kit/inputs.md) |
 | kbd | `kbd` | Done (batch 1) |  |
 | label | `label` | Existing |  |
 | list | — | Planned (batch 5) |  |
@@ -176,15 +176,15 @@ exists; **Planned** — scheduled for the named batch. Per-group details live in
 | message-scroller | — | Planned (batch 7) |  |
 | message | — | Planned (batch 7) |  |
 | notification | — | Planned (batch 3) | `after` timers exist |
-| number-input | — | In progress (batch 2) |  |
-| otp-input | — | In progress (batch 2) |  |
+| number-input | `number_input` | Done (batch 2) | [inputs](gpui-kit/inputs.md) |
+| otp-input | `otp_input` | Done (batch 2) | [inputs](gpui-kit/inputs.md) |
 | pagination | `pagination` | Done (batch 1) |  |
 | plot | — | Planned (batch 9) |  |
 | popover | — | Planned (batch 3) |  |
 | progress | `progress_bar` | Partial | Circular progress in batch 2 |
 | questionnaire | — | Planned (batch 7) |  |
-| radio | — | In progress (batch 2) |  |
-| rating | — | In progress (batch 2) |  |
+| radio | `radio`, `radio_group` | Done (batch 2) | [choice](gpui-kit/choice.md) |
+| rating | `rating` | Done (batch 2) | [choice](gpui-kit/choice.md) |
 | resizable | — | Planned (batch 6) |  |
 | root | `screen` | Not applicable | GPUI window root; ui2 builds a `screen` |
 | scrollable | `scroll` | Existing |  |
@@ -198,7 +198,7 @@ exists; **Planned** — scheduled for the named batch. Per-group details live in
 | speech | — | Planned (batch 7) | Needs platform speech recognition |
 | spinner | — | In progress (batch 2) | `spinner` is ui2's selection control |
 | status-bar | — | Planned (batch 6) |  |
-| stepper | — | In progress (batch 2) |  |
+| stepper | `stepper` | Done (batch 2) | [choice](gpui-kit/choice.md) |
 | switch | `switch_control` | Existing |  |
 | table | — | Planned (batch 5) |  |
 | tabs | `tabbed_panel` | Existing | Feature audit pending |
@@ -208,7 +208,7 @@ exists; **Planned** — scheduled for the named batch. Per-group details live in
 | theme | `ComponentTheme` | Partial | Light/dark tokens; theme registry later |
 | time-field | — | Planned (batch 4) |  |
 | title-bar | — | Planned (batch 6) |  |
-| toggle | `toggle_button` | In progress (batch 2) | Toggle group |
+| toggle | `toggle`, `toggle_group` | Done (batch 2) | [choice](gpui-kit/choice.md) |
 | toolbar | — | Planned (batch 6) |  |
 | tooltip | `with_tooltip` | Existing |  |
 | tree | `tree_view` | Existing | Feature audit pending |
