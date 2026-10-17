@@ -163,10 +163,10 @@ fn native_image_from_name(name string) macos.Id {
 	}
 	ns_name := macos.nsstring(name)
 	if name.starts_with('symbol:') {
-		symbol_name := macos.nsstring(name['symbol:'.len..])
+		ns_symbol := macos.nsstring(name['symbol:'.len..])
 		image_class := macos.get_class('NSImage')
 		if macos.responds_to(image_class, 'imageWithSystemSymbolName:accessibilityDescription:') {
-			symbol_image := macos.msg_id2(image_class, 'imageWithSystemSymbolName:accessibilityDescription:', symbol_name, objc_nil())
+			symbol_image := macos.msg_id2(image_class, 'imageWithSystemSymbolName:accessibilityDescription:', ns_symbol, objc_nil())
 			if !objc_is_nil(symbol_image) {
 				return symbol_image
 			}

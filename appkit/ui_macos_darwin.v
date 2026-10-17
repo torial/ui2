@@ -1526,17 +1526,17 @@ fn native_hovered_chain(window_point macos.Point) []string {
 	} else {
 		macos.msg_point_point_id(superview, 'convertPoint:fromView:', window_point, objc_nil())
 	}
-	mut view := NativeView(C.ui2_macos_msg_id_point(st.root_view, macos.sel('hitTest:'), point.x,
+	mut hit_view := NativeView(C.ui2_macos_msg_id_point(st.root_view, macos.sel('hitTest:'), point.x,
 		point.y))
 	mut inner_first := []string{}
-	for !native_is_nil(view) {
-		if action := st.hover_ids[u64(voidptr(view))] {
+	for !native_is_nil(hit_view) {
+		if action := st.hover_ids[u64(voidptr(hit_view))] {
 			inner_first << action
 		}
-		if view == st.root_view {
+		if hit_view == st.root_view {
 			break
 		}
-		view = NativeView(macos.msg_id(view, 'superview'))
+		hit_view = NativeView(macos.msg_id(hit_view, 'superview'))
 	}
 	return inner_first.reverse()
 }
@@ -2297,11 +2297,11 @@ fn native_label_content_height(label_view NativeView, frame NativeRect, lines in
 	if native_is_nil(font) {
 		return 0
 	}
-	text := macos.utf8_string(macos.msg_id(label_view, 'stringValue'))
-	if text.len == 0 {
+	label_text := macos.utf8_string(macos.msg_id(label_view, 'stringValue'))
+	if label_text.len == 0 {
 		return 0
 	}
-	if !text.is_ascii() {
+	if !label_text.is_ascii() {
 		return native_single_line_height(label_view)
 	}
 	key := '${macos.utf8_string(macos.msg_id(font, 'fontName'))}:${macos.msg_f64(font, 'pointSize')}'
@@ -2867,8 +2867,8 @@ fn native_set_gradient_layer(view NativeView, layer macos.Id, box BoxStyle, opac
 	if macos.msg_id(gradient, 'superlayer') != layer {
 		macos.msg_void1(layer, 'addSublayer:', gradient)
 	}
-	bounds := macos.msg_rect(view, 'bounds')
-	macos.msg_void_rect(gradient, 'setFrame:', bounds)
+	layer_bounds := macos.msg_rect(view, 'bounds')
+	macos.msg_void_rect(gradient, 'setFrame:', layer_bounds)
 	macos.msg_void_f64(gradient, 'setCornerRadius:', box.radius)
 	stops := gradient_sorted_stops(box.gradient)
 	colors := macos.msg_id(macos.alloc('NSMutableArray'), 'init')
@@ -2885,9 +2885,9 @@ fn native_set_gradient_layer(view NativeView, layer macos.Id, box BoxStyle, opac
 	macos.release(locations)
 	// The gradient runs along a line in the box's top-left based points; the layer
 	// takes its ends as fractions of its bounds, with y up unless the view flips it.
-	line := gradient_line(box.gradient.angle, bounds.width, bounds.height)
-	w := if bounds.width > 0 { bounds.width } else { 1.0 }
-	h := if bounds.height > 0 { bounds.height } else { 1.0 }
+	line := gradient_line(box.gradient.angle, layer_bounds.width, layer_bounds.height)
+	w := if layer_bounds.width > 0 { layer_bounds.width } else { 1.0 }
+	h := if layer_bounds.height > 0 { layer_bounds.height } else { 1.0 }
 	flipped := macos.msg_bool(view, 'isFlipped')
 	y0 := if flipped { line.y0 / h } else { 1 - line.y0 / h }
 	y1 := if flipped { line.y1 / h } else { 1 - line.y1 / h }
@@ -2925,9 +2925,9 @@ fn native_set_layer_shadow(view NativeView, layer macos.Id, box BoxStyle) {
 	macos.msg_void_point(ns_shadow, 'setShadowOffset:', macos.point(shadow.x, -shadow.y))
 	macos.msg_void1(view, 'setShadow:', ns_shadow)
 	macos.release(ns_shadow)
-	bounds := macos.msg_rect(view, 'bounds')
-	C.ui2_macos_set_shadow_path(layer, -shadow.spread, -shadow.spread, bounds.width + 2 * shadow.spread,
-		bounds.height + 2 * shadow.spread, box.radius + shadow.spread)
+	layer_bounds := macos.msg_rect(view, 'bounds')
+	C.ui2_macos_set_shadow_path(layer, -shadow.spread, -shadow.spread, layer_bounds.width + 2 * shadow.spread,
+		layer_bounds.height + 2 * shadow.spread, box.radius + shadow.spread)
 }
 
 // A rounded box clips its subviews to its corners, except when it casts a shadow:
