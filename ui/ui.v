@@ -517,43 +517,26 @@ fn reconciliation_child_key(parent string, index int, el Element) string {
 // renderer mutates native state.
 pub fn validate_element_tree(root Element) ! {
 	mut ids := map[string]bool{}
-	mut trail := []int{}
-	validate_element_node(root, mut trail, mut ids)!
+	validate_element_node(root, 'root', mut ids)!
 }
 
-// validate_element_node checks el and its subtree. trail holds the child indices that
-// lead to el, so a path is only formatted when an error needs one.
-fn validate_element_node(el Element, mut trail []int, mut ids map[string]bool) ! {
+fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
 	if el.id.len > 0 {
 		if el.id in ids {
-			return error('duplicate element id `${el.id}` at ${validate_element_path(trail)}')
+			return error('duplicate element id `${el.id}` at ${path}')
 		}
 		ids[el.id] = true
-	}
-	if el.children.len == 0 {
-		return
 	}
 	mut keys := map[string]bool{}
 	for index, child in el.children {
 		if child.key.len > 0 {
 			if child.key in keys {
-				return error('duplicate sibling key `${child.key}` at ${validate_element_path(trail)}')
+				return error('duplicate sibling key `${child.key}` at ${path}')
 			}
 			keys[child.key] = true
 		}
-		trail << index
-		validate_element_node(child, mut trail, mut ids)!
-		trail.delete_last()
+		validate_element_node(child, '${path}/${index}', mut ids)!
 	}
-}
-
-// validate_element_path formats the path of the element that trail leads to.
-fn validate_element_path(trail []int) string {
-	mut path := 'root'
-	for index in trail {
-		path += '/${index}'
-	}
-	return path
 }
 
 pub const keyboard_default = 0
