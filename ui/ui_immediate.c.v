@@ -176,6 +176,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_gg_app = &GgApp{}
 	__global g_refresh_mode = RefreshMode.on_demand
 	__global g_last_frame_ticks = i64(0)
+	// Reused by the rounded-corner drawing, so a frame's controls allocate no points.
+	__global g_outline_points = []f64{}
+	__global g_outline_outer = []f64{}
+	__global g_outline_inner = []f64{}
+	__global g_present_on_demand = false
 	// g_frame_running is true while on_frame builds and draws the window.
 	// menu_default reads it so a menu bar set during the frame does not ask
 	// for another one.
@@ -382,7 +387,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 // WindowOptions carries the window creation knobs run_window_with_options
-// accepts on top of what run_window takes positionally.
+// accepts on top of what run_window takes positionally. gl_load scopes which
+// EGL vendor libraries glvnd may load before the window's GL context
+// initializes (Linux only; see GlLoad), and UI2_GL_VENDOR overrides it
+// without a recompile.
 	pub struct WindowOptions {
 	pub:
 		title      string
@@ -395,14 +403,20 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// pay the fill rate for it; 1 turns antialiasing off.
 		sample_count int = 4
 		refresh    RefreshMode = .on_demand
+		gl_load    GlLoad = .auto
 	}
 
 // run_window_with_options opens the window with per-application control over
-// the antialiasing level and the refresh mode. run_window and run default the
-// custom renderer to on_demand, where the frame scheduler coalesces asks and
-// leaves the retained tree untouched while nothing is pending; set
-// refresh: .continuous to restore the historical per-vsync rebuild loop.
+// the antialiasing level, the refresh mode and the GL vendor scope.
+// run_window and run default the custom renderer to on_demand, where the
+// frame scheduler coalesces asks and leaves the retained tree untouched while
+// nothing is pending; set refresh: .continuous to restore the historical
+// per-vsync rebuild loop. The GL scope is applied before sokol can open its
+// display: glvnd reads the vendor list at the first EGL call, and once a
+// vendor's userspace stack is mapped the memory is spent for the lifetime of
+// the process.
 	pub fn run_window_with_options(opts WindowOptions, build_fn BuildFn, event_fn EventFn) {
+		configure_gl_libraries(opts.gl_load)
 		// A dispatcher retained by an old worker stays attached to its closed window.
 		if g_gg_app.scheduler.is_closed() {
 			g_gg_app = &GgApp{}
@@ -464,20 +478,24 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 // threads — asks for a redraw itself; this thread is for the ones that cannot
 // ask. On X11, sokol selects no Expose handling, so when a region of the window
 // becomes visible again nothing tells the loop, and with no compositor the
-// old pixels stay on screen. A redraw every second bounds how long any
-// surprise persists while costing about two frames out of each.
-	const idle_keepalive_ms = 1000
+// old pixels stay on screen. A repaint about every ten seconds bounds how long
+// any surprise persists. It repaints the retained tree without rebuilding it:
+// an idle window has nothing new to build.
+	// The keep-alive checks the clock every idle_keepalive_check_ms and repaints once the
+	// last presented frame is idle_keepalive_period_ms old.
+	const idle_keepalive_check_ms = 5000
+	const idle_keepalive_period_ms = 10000
 
 	fn idle_keepalive_waker() {
 		for {
-			time.sleep(idle_keepalive_ms * time.millisecond)
+			time.sleep(idle_keepalive_check_ms * time.millisecond)
 			// Frames flowing for another reason keep g_last_frame_ticks fresh;
 			// stepping over those intervals keeps the keep-alive from adding
 			// work on top of live traffic.
-			if time.ticks() - g_last_frame_ticks < idle_keepalive_ms {
+			if time.ticks() - g_last_frame_ticks < idle_keepalive_period_ms {
 				continue
 			}
-			request_refresh()
+			invalidate_custom_paint()
 		}
 	}
 
@@ -491,15 +509,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return UiDispatcher{coordinator: g_gg_app.scheduler}
 	}
 
-// wake_ui_loop hands gg's context a redraw ask. refresh_ui flips a boolean the
-// frame thread reads, so calling it off the UI thread is deliberate and safe;
-// libmpv's update callback, the scheduler's wake hook and the timer threads
-// land here.
+// wake_ui_loop hands gg's context a redraw ask and interrupts the loop's
+// sleep. refresh_ui alone would leave the frame waiting for the loop's next
+// deadline — with the deadline hook installed that can be never, since an
+// idle window reports no deadline and no X event is coming. sapp_wake is a
+// nonblocking pipe write, so it stays safe under the coordinator mutex.
 	fn wake_ui_loop() {
 		if g_gg_app.ctx == unsafe { nil } {
 			return
 		}
 		g_gg_app.ctx.refresh_ui()
+		C.sapp_wake()
 	}
 
 // refresh asks for a rebuild over whatever the application changed outside a
@@ -886,14 +906,58 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// ── Frame & event loop ─────────────────────────────────────────────
 
+	fn C.sapp_set_present_on_demand(enabled bool) bool
+	fn C.sapp_request_present()
+	// The X11 loop's deadline hook: before each sleep sokol asks this function
+	// how long it may wait. A negative return means nothing is scheduled, so
+	// the loop waits on its poll set — an X event or a sapp_wake — alone.
+	fn C.sapp_set_frame_deadline_cb(cb fn () f64)
+	// sapp_wake interrupts the loop's sleep from any thread. It is a plain
+	// nonblocking write to a pipe in data-segment memory, so unlike the
+	// scheduler's invalidate it is safe from threads the GC does not know.
+	fn C.sapp_wake()
+
+// ui2_frame_deadline_cb tells sokol how long the event loop may sleep before
+// the next scheduled frame. It runs on the frame thread just before the loop
+// sleeps, so the scheduler's deadline — set at the end of the last frame — is
+// already current, and reading it needs no extra synchronization. A deadline
+// the last frame already ran past must wake the loop now: sokol reads a
+// negative return as "nothing scheduled" and would block on the poll set
+// alone, never servicing the timer.
+	fn ui2_frame_deadline_cb() f64 {
+		stats := g_gg_app.scheduler.stats()
+		if stats.next_deadline < 0 {
+			return -1.0
+		}
+		delta := stats.next_deadline - renderer_now_ms()
+		if delta <= 0 {
+			return 0.0
+		}
+		return f64(delta) / 1000.0
+	}
+
 	fn on_init(app &GgApp) {
-		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
-		// discarded backbuffers need a full paint; only the Metal path can skip
-		// submission safely until UI2 owns presentation in the platform embedder.
+		// Sokol's loops swap even when frame_fn returns early, so an undrawn backbuffer
+		// can be presented on drivers that discard it. Metal skips idle callbacks. X11
+		// skips them too when sokol honors sapp_set_present_on_demand: frames UI2 did
+		// not draw are not presented, so the window keeps its last picture. Other
+		// backends repaint the retained tree on every callback.
+		$if gg_record ? {
+		} $else $if linux {
+			g_present_on_demand = g_refresh_mode != .continuous && C.sapp_set_present_on_demand(true)
+			// The deadline hook makes the X11 loop sleep until the earliest of
+			// the scheduler's next deadline, an X event or a sapp_wake, instead
+			// of pacing itself at the swap interval all night. Continuous mode
+			// draws every frame and must keep the stock pacing.
+			if g_refresh_mode != .continuous {
+				C.sapp_set_frame_deadline_cb(ui2_frame_deadline_cb)
+			}
+		}
 		// A reference field of an immutable pointer cannot be popped through to a
 		// mut method on V 0.5.2; bind it through a mutable local instead.
 		mut scheduler := app.scheduler
-		scheduler.set_presentation_required(gfx.query_backend() != .metal_macos)
+		scheduler.set_presentation_required(gfx.query_backend() != .metal_macos
+			&& !g_present_on_demand)
 		if voidptr(g_build_screen) == unsafe { nil } {
 			custom_fire_window_ready()
 			return
@@ -942,7 +1006,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks {
 			return
 		}
-		g_last_frame_ticks = time.ticks()
+		if !g_present_on_demand {
+			g_last_frame_ticks = time.ticks()
+		}
 		g_frame_running = true
 		defer {
 			g_frame_running = false
@@ -1006,28 +1072,27 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if app.scheduler.is_closed() || app.iconified || app.suspended {
 			return
 		}
+		// The animation pass returns the tree the build just validated with
+		// animation properties merged in: it keeps every id, key and child, so
+		// revalidating the result would rescan the tree for no new information.
 		root := apply_custom_widget_animations(app.declared_root)
 		// Animation callbacks are user code and may close or suspend the window.
 		if app.scheduler.is_closed() || app.iconified || app.suspended {
 			return
 		}
-		validate_element_tree(root) or {
-			eprintln('ui2: ${err}')
-			return
-		}
-		g_hit_targets = []HitTarget{}
-		g_hover_regions = []HoverRegion{}
+		g_hit_targets.clear()
+		g_hover_regions.clear()
 		g_hover_chain = []string{}
 		g_tooltip_targets.clear()
 		g_tooltip_owners = 0
 		reset_scroll_frame()
-		g_active_fields = map[string]bool{}
-		g_active_sliders = map[string]bool{}
-		g_active_switches = map[string]bool{}
-		g_active_checkboxes = map[string]bool{}
-		g_active_toggles = map[string]bool{}
-		g_active_scrolls = map[string]bool{}
-		g_active_images = map[string]bool{}
+		g_active_fields.clear()
+		g_active_sliders.clear()
+		g_active_switches.clear()
+		g_active_checkboxes.clear()
+		g_active_toggles.clear()
+		g_active_scrolls.clear()
+		g_active_images.clear()
 		// Image resources must be available before starting the GPU pass.
 		preload_images(root)
 		if voidptr(g_gl_surface_renderer) != unsafe { nil } {
@@ -1065,6 +1130,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		ctx.end()
 		app.scheduler.record_draw()
+		if g_present_on_demand {
+			// Idle callbacks present nothing, so the keep-alive measures idle time from the
+			// last frame that was presented.
+			C.sapp_request_present()
+			g_last_frame_ticks = time.ticks()
+		}
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
 	}
@@ -2527,7 +2598,27 @@ fn page_focused_text_area(direction int) {
 			g_scroll_content_h.delete(id)
 			g_scroll_offsets_x.delete(id)
 			g_scroll_content_w.delete(id)
+			// Auxiliary scroll state lives in separate maps; a dead id must
+			// release every one of them or it leaks across frame lifetimes.
+			g_scroll_viewports.delete(id)
+			g_pending_scroll.delete(id)
+			g_scrollbar_geometries.delete(id)
+			g_pending_scroll_x.delete(id)
+			g_scrollbar_geometries_x.delete(id)
+			g_scroll_parents.delete(id)
+			g_scroll_areas.delete(id)
 		}
+		// g_scroll_order survives only entries for live scroll areas; the
+		// draw pass iterates it to keep stacking order stable.
+		mut live_order := []string{}
+		for id in g_scroll_order {
+			if id in g_active_scrolls {
+				live_order << id
+			}
+		}
+		// The purge runs on the sweep path; the local array must not alias
+		// the global that outlives this frame.
+		g_scroll_order = live_order.clone()
 		for id in g_text_area_layouts.keys() {
 			if id !in g_active_fields || (g_text_kinds[id] or { Kind.screen }) != .text_area {
 				g_text_area_layouts.delete(id)
@@ -2544,6 +2635,11 @@ fn page_focused_text_area(direction int) {
 			image_id := g_image_ids[path] or { continue }
 			image_ctx.remove_cached_image_by_idx(image_id)
 			g_image_ids.delete(path)
+		}
+		// Open dropdown state refers to an element id; if the id left the tree,
+		// the popup can never close by itself.
+		if g_open_dropdown.len > 0 && g_open_dropdown !in g_active_fields {
+			close_dropdown()
 		}
 	}
 
@@ -3466,7 +3562,12 @@ fn page_focused_text_area(direction int) {
 		r := math.max(0, math.min(radius, math.min(w, h) / 2))
 		scale := f64(ctx.scale)
 		segments := int(math.min(math.max(math.sqrt(r * scale) * 1.5, 2), 16))
-		points := rounded_outline(x, y, w, h, r, segments)
+		mut points := g_outline_points
+		points.clear()
+		rounded_outline(mut points, x, y, w, h, r, segments)
+		unsafe {
+			g_outline_points = points
+		}
 		if c.a != 255 {
 			sgl.load_pipeline(ctx.pipeline.alpha)
 		}
@@ -3474,12 +3575,12 @@ fn page_focused_text_area(direction int) {
 		cx := f32((x + w / 2) * scale)
 		cy := f32((y + h / 2) * scale)
 		sgl.begin_triangles()
-		for i in 0 .. points.len {
-			a := points[i]
-			b := points[(i + 1) % points.len]
+		count := points.len / 2
+		for i in 0 .. count {
+			j := (i + 1) % count
 			sgl.v2f(cx, cy)
-			sgl.v2f(f32(a[0] * scale), f32(a[1] * scale))
-			sgl.v2f(f32(b[0] * scale), f32(b[1] * scale))
+			sgl.v2f(f32(points[2 * i] * scale), f32(points[2 * i + 1] * scale))
+			sgl.v2f(f32(points[2 * j] * scale), f32(points[2 * j + 1] * scale))
 		}
 		sgl.end()
 	}
@@ -3723,18 +3824,18 @@ fn page_focused_text_area(direction int) {
 	// rounded_outline lists points around a rounded rectangle, clockwise from the
 	// start of its top-left corner, with the same count whatever the radius so
 	// an outer and an inner outline pair up point for point.
-	fn rounded_outline(x f64, y f64, w f64, h f64, radius f64, segments int) [][]f64 {
+	fn rounded_outline(mut points []f64, x f64, y f64, w f64, h f64, radius f64, segments int) {
 		r := math.max(0, math.min(radius, math.min(w, h) / 2))
-		centers := [[x + r, y + r], [x + w - r, y + r], [x + w - r, y + h - r], [x + r, y + h - r]]
-		mut points := [][]f64{cap: 4 * (segments + 1)}
-		for corner, center in centers {
+		for corner in 0 .. 4 {
+			cx := if corner == 1 || corner == 2 { x + w - r } else { x + r }
+			cy := if corner < 2 { y + r } else { y + h - r }
 			start := math.pi * (1.0 + 0.5 * f64(corner))
 			for i in 0 .. segments + 1 {
 				angle := start + math.pi / 2 * f64(i) / f64(segments)
-				points << [center[0] + r * math.cos(angle), center[1] + r * math.sin(angle)]
+				points << cx + r * math.cos(angle)
+				points << cy + r * math.sin(angle)
 			}
 		}
-		return points
 	}
 
 	// draw_rounded_ring draws an even border that follows a box's rounded
@@ -3744,19 +3845,29 @@ fn page_focused_text_area(direction int) {
 			return
 		}
 		segments := int(math.max(4, math.min(16, radius / 2)))
-		outer := rounded_outline(x, y, w, h, radius, segments)
-		inner := rounded_outline(x + width, y + width, w - 2 * width, h - 2 * width, radius - width,
+		mut outer := g_outline_outer
+		mut inner := g_outline_inner
+		outer.clear()
+		inner.clear()
+		rounded_outline(mut outer, x, y, w, h, radius, segments)
+		rounded_outline(mut inner, x + width, y + width, w - 2 * width, h - 2 * width, radius - width,
 			segments)
+		unsafe {
+			g_outline_outer = outer
+		}
+		unsafe {
+			g_outline_inner = inner
+		}
+		count := outer.len / 2
 		c := hex_color(color_hex)
 		scale := f64(ctx.scale)
 		sgl.load_pipeline(ctx.pipeline.alpha)
 		sgl.c4b(c.r, c.g, c.b, c.a)
 		sgl.begin_triangle_strip()
-		for i in 0 .. outer.len + 1 {
-			o := outer[i % outer.len]
-			n := inner[i % inner.len]
-			sgl.v2f(f32(o[0] * scale), f32(o[1] * scale))
-			sgl.v2f(f32(n[0] * scale), f32(n[1] * scale))
+		for i in 0 .. count + 1 {
+			k := i % count
+			sgl.v2f(f32(outer[2 * k] * scale), f32(outer[2 * k + 1] * scale))
+			sgl.v2f(f32(inner[2 * k] * scale), f32(inner[2 * k + 1] * scale))
 		}
 		sgl.end()
 	}
@@ -4202,8 +4313,9 @@ fn page_focused_text_area(direction int) {
 			vertical_align: .middle
 		}
 		line_h := font_line_height(style.size)
-		parts := if style.lines > 1 {
-			wrap_text_lines(ctx, t, w, style.lines, cfg)
+		line_budget := text_line_budget(style)
+		parts := if line_budget > 1 {
+			wrap_text_lines(ctx, t, w, line_budget, cfg)
 		} else {
 			[t]
 		}
