@@ -1,7 +1,8 @@
 /* windows/tcc_compat_windows.h -- the Win32 declarations ui2's Windows helpers take
  * from commctrl.h, commdlg.h, shlobj.h and oleacc.h, for V's bundled tcc, whose
  * winapi header set carries none of those four (it has windows.h, windowsx.h,
- * shellapi.h, oleauto.h, oaidl.h, objbase.h and unknwn.h). Read only under
+ * shellapi.h, oleauto.h, oaidl.h, objbase.h and unknwn.h; the tray icon comes
+ * from its own shellapi.h, included below). Read only under
  * __TINYC__; every other compiler reads the real headers through the helpers'
  * own includes. The structures are laid out as the SDK lays them out and the
  * constants are the SDK's values (taken from mingw-w64's headers, 2026-10-28);
@@ -22,13 +23,24 @@
 #include <oaidl.h>
 #include <oleauto.h>
 
-/* ---- winuser.h and sysinfoapi.h: newer than tcc's copies ---- */
+/* ---- winuser.h: newer than tcc's copy ---- */
 #ifndef SM_CXPADDEDBORDER
 #define SM_CXPADDEDBORDER 92
 #endif
-ULONGLONG WINAPI GetTickCount64(void);
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020e
+#endif
 
-/* ---- shellapi.h: the tray icon, absent from tcc's copy ---- */
+/* ---- shellapi.h ----
+ * tcc's shellapi.h (copied from mingw-w64) carries the tray icon: the
+ * NOTIFYICONDATAW structure, the NIM_/NIF_ flags and Shell_NotifyIconW. It is
+ * included here so the wrapper below sees those types; the fallbacks cover a
+ * tcc whose shellapi.h predates them. The struct must not be redefined
+ * unconditionally: a second definition of the tag, even identical, is a tcc
+ * error ("struct/union/enum already defined") the moment shellapi.h is
+ * included too. */
+#include <shellapi.h>
+#ifndef NOTIFYICONDATAW_V1_SIZE
 typedef struct _NOTIFYICONDATAW {
 	DWORD cbSize;
 	HWND hWnd;
@@ -49,13 +61,17 @@ typedef struct _NOTIFYICONDATAW {
 	GUID guidItem;
 	HICON hBalloonIcon;
 } NOTIFYICONDATAW, *PNOTIFYICONDATAW;
+#endif
+#ifndef NIM_ADD
 #define NIM_ADD 0x0
 #define NIM_MODIFY 0x1
 #define NIM_DELETE 0x2
+#endif
+#ifndef NIF_MESSAGE
 #define NIF_MESSAGE 0x1
 #define NIF_ICON 0x2
 #define NIF_TIP 0x4
-WINBOOL WINAPI Shell_NotifyIconW(DWORD, PNOTIFYICONDATAW);
+#endif
 
 /* ---- commctrl.h ---- */
 #define TBS_HORZ 0x0
@@ -203,7 +219,7 @@ typedef struct IAccessibleVtbl {
 	void *accLocation;
 	void *accNavigate;
 	void *accHitTest;
-	void *accDoDefaultAction;
+	HRESULT (STDMETHODCALLTYPE *accDoDefaultAction)(IAccessible *, VARIANT);
 	void *put_accName;
 	void *put_accValue;
 } IAccessibleVtbl;
@@ -217,10 +233,12 @@ HRESULT WINAPI CreateStdAccessibleProxyW(HWND, LPCWSTR, LONG, REFIID, void **);
 /* ---- exports missing from V's tcc import lists ----
  * tcc links gdi32 and kernel32 through the hand-listed gdi32.def and kernel32.def in
  * V's thirdparty/tcc/lib (every other library it reads from the DLL's own export
- * table). Four calls the helpers make are declared in tcc's headers but absent from
- * those lists, so the link failed on them; they are fetched from the DLLs at first
- * use, behind macros of their own names. */
+ * table). Five calls the helpers make are absent from those lists —
+ * GetGlyphIndicesW, GetTickCount64 and the activation context's three — and one
+ * call from V, AddFontResourceExW, is absent too; they are fetched from the
+ * DLLs at first use, behind macros of their own names. */
 typedef DWORD (WINAPI *ui2_tcc_GetGlyphIndicesW_t)(HDC, LPCWSTR, int, LPWORD, DWORD);
+typedef ULONGLONG (WINAPI *ui2_tcc_GetTickCount64_t)(void);
 typedef HANDLE (WINAPI *ui2_tcc_CreateActCtxW_t)(PCACTCTXW);
 typedef WINBOOL (WINAPI *ui2_tcc_ActivateActCtx_t)(HANDLE, ULONG_PTR *);
 typedef VOID (WINAPI *ui2_tcc_ReleaseActCtx_t)(HANDLE);
@@ -237,6 +255,11 @@ static DWORD WINAPI ui2_tcc_GetGlyphIndicesW(HDC dc, LPCWSTR text, int count, LP
 	static ui2_tcc_GetGlyphIndicesW_t f = NULL;
 	if (f == NULL) f = (ui2_tcc_GetGlyphIndicesW_t)ui2_tcc_import(L"gdi32.dll", "GetGlyphIndicesW");
 	return f == NULL ? GDI_ERROR : f(dc, text, count, glyphs, flags);
+}
+static ULONGLONG WINAPI ui2_tcc_GetTickCount64(void) {
+	static ui2_tcc_GetTickCount64_t f = NULL;
+	if (f == NULL) f = (ui2_tcc_GetTickCount64_t)ui2_tcc_import(L"kernel32.dll", "GetTickCount64");
+	return f == NULL ? 0 : f();
 }
 static HANDLE WINAPI ui2_tcc_CreateActCtxW(PCACTCTXW context) {
 	static ui2_tcc_CreateActCtxW_t f = NULL;
@@ -277,6 +300,7 @@ static WINBOOL WINAPI ui2_tcc_Shell_NotifyIconW(DWORD message, PNOTIFYICONDATAW 
 	return f == NULL ? FALSE : f(message, data);
 }
 #define GetGlyphIndicesW ui2_tcc_GetGlyphIndicesW
+#define GetTickCount64 ui2_tcc_GetTickCount64
 #define AddFontResourceExW ui2_tcc_AddFontResourceExW
 #define SHBrowseForFolderW ui2_tcc_SHBrowseForFolderW
 #define SHGetPathFromIDListW ui2_tcc_SHGetPathFromIDListW
