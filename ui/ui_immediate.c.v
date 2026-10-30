@@ -5,7 +5,6 @@
 module ui2
 
 $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
-	import clipboard
 	import fontstash
 	import gg
 	import math
@@ -192,7 +191,7 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 	__global g_outline_inner = []f64{}
 	__global g_present_on_demand = false
 	__global g_text_values = map[string]string{}
-	__global g_clipboard = &clipboard.Clipboard(unsafe { nil })
+	__global g_clipboard = &NativeTextClipboard{}
 	__global g_clipboard_override = ?TextClipboard(none)
 	__global g_text_props = map[string]string{}
 	__global g_text_editors = map[string]TextEditor{}
@@ -2311,7 +2310,7 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 		return true
 	}
 
-	// TextClipboard is the part of clipboard.Clipboard the shortcuts use. Tests
+	// TextClipboard is the copy and paste part the shortcuts drive. Tests
 	// install their own through g_clipboard_override to exercise failed copies
 	// and pasted text without touching the system clipboard.
 	interface TextClipboard {
@@ -2320,16 +2319,33 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 		paste() string
 	}
 
-	// system_clipboard returns the process-wide clipboard, created on first use.
-	// The instance must outlive each copy: on X11 the clipboard owns a window
-	// that holds CLIPBOARD selection ownership, and destroying it right after
-	// a copy hands the selection back to nobody.
+	// NativeTextClipboard answers the copy and paste halves through the
+	// native shims: the process-external tools (wl-copy, wl-paste, xclip,
+	// xsel) own a selection for the short life a paste needs, without a
+	// second X display and a second event loop inside the window's own
+	// process. The vlib clipboard window this replaces internalized Xlib —
+	// its XInitThreads call must precede every other Xlib call, and by the
+	// time a field first copies, gg has long since opened its own display,
+	// so the first copy or paste crashed the window.
+	struct NativeTextClipboard {}
+
+	fn (mut NativeTextClipboard) copy(text string) bool {
+		return native_set_clipboard_text(text)
+	}
+
+	fn (NativeTextClipboard) paste() string {
+		return native_clipboard_text() or { '' }
+	}
+
+	// system_clipboard returns the process-wide clipboard, created on first
+	// use. The instance must outlive each copy: the shim's tools run to
+	// completion per call, so the lifetime only concerns the override.
 	fn system_clipboard() TextClipboard {
 		if override := g_clipboard_override {
 			return override
 		}
 		if isnil(g_clipboard) {
-			g_clipboard = clipboard.new()
+			g_clipboard = &NativeTextClipboard{}
 		}
 		return g_clipboard
 	}
