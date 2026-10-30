@@ -201,7 +201,7 @@ pub fn styled_switch(config StyledSwitchConfig) !Element {
 		BoxStyle{
 			bg:     thumb_color
 			radius: sm.thumb / 2
-			shadow: if config.enabled { box_shadow(0x000000, 0.2, 2, 1) } else { BoxShadow{} }
+			shadow: if config.enabled { box_shadow(0x000000, 0.2, 2, 0) } else { BoxShadow{} }
 		}, thumb_children)
 	mut children := []Element{}
 	if config.focused && config.enabled {

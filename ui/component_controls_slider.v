@@ -585,7 +585,7 @@ fn styled_slider_thumb(config StyledSliderConfig, l SliderLayout, colors SliderC
 		...draggable_view(styled_slider_thumb_id(config.id, thumb), frame, BoxStyle{
 			bg:     colors.accent
 			radius: d / 2
-			shadow: if config.enabled { box_shadow(0x000000, 0.16, 2, 1) } else { BoxShadow{} }
+			shadow: if config.enabled { box_shadow(0x000000, 0.16, 2, 0) } else { BoxShadow{} }
 		}, [inner])
 		key:                 'thumb:${thumb}'
 		enabled:             config.enabled

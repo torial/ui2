@@ -331,6 +331,8 @@ fn test_switch_builds_track_thumb_label_and_description() {
 	assert controls_texts(el) == ['Wi-Fi', 'Join known networks automatically']
 	thumb := controls_find(el, component_part_id('wifi', 'thumb')) or { panic('no thumb') }
 	assert thumb.frame.x == styled_switch_thumb_x(.medium, true)
+	assert thumb.box.shadow.opacity > 0
+	assert thumb.box.shadow.y == 0
 	theme := component_theme(false)
 	track := el.children[0]
 	assert track.box.bg == theme.primary
@@ -544,6 +546,9 @@ fn test_slider_builds_track_fill_and_thumb() {
 	// pad = thumb / 2 + ring = 11, so the track is 200 long and 50 is at 111.
 	assert controls_near(thumb.frame.x + thumb.frame.width / 2, 111)
 	assert controls_near(thumb.frame.y + thumb.frame.height / 2, 12)
+	// The thumb's shadow is centred, so its bottom edge is no larger than its top.
+	assert thumb.box.shadow.opacity > 0
+	assert thumb.box.shadow.y == 0
 	track := controls_find(el, styled_slider_track_id('vol')) or { panic('no track') }
 	assert track.draggable
 	assert track.children.len == 2
