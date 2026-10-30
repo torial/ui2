@@ -7,6 +7,8 @@
 // iOS have their own bridge files, and Android the default fallback.
 module ui2
 
+import time
+
 $if linux || freebsd || openbsd || netbsd || dragonfly || solaris {
 	import os
 
@@ -50,26 +52,50 @@ $if linux || freebsd || openbsd || netbsd || dragonfly || solaris {
 		return true
 	}
 
-	fn native_set_clipboard_text(text string) bool {
-		tool := linux_clipboard_tool() or { return false }
-		path := os.join_path(os.temp_dir(), 'ui2-clipboard-${os.getpid()}.txt')
+	// The copy tools daemonize while they hold the pasted selection: an xclip
+	// keeps serving it after the command answers, carrying whatever file
+	// descriptors it inherited, and a redirect-through-pipes run made the
+	// caller wait for the daemon's whole life — the slurp never saw EOF until
+	// another claimant took the selection over, so every copy froze the
+	// event thread until the next copy. Nothing reads the child's output:
+	// stdin is the file, stdout and stderr travel with the caller's own
+	// descriptors, and wait() answers the immediate child only. wl-copy does
+	// not answer at all (it serves until superseded), so for it the run is
+	// fire-and-forget and never waited.
+	fn native_clipboard_write(copy_args []string, text string) bool {
+		path := os.join_path(os.temp_dir(), 'ui2-clipboard-${os.getpid()}-${time.sys_mono_now()}.txt')
 		os.write_file(path, text) or { return false }
 		defer {
 			os.rm(path) or {}
 		}
-		// The tool reads the file before it forks to keep serving the selection;
-		// its streams are captured and dropped, so the background copy does not
-		// hold the pipes this call waits on.
-		mut p := os.new_process(tool.copy[0])
-		p.set_args(tool.copy[1..])
-		p.set_redirect_stdio()
+		$if clipboard_stage_probe ? {
+			eprintln('KW stage: file ${time.sys_mono_now()}')
+		}
+		mut p := os.new_process(copy_args[0])
+		p.set_args(copy_args[1..])
 		p.set_stdin_path(path)
 		p.run()
-		_ = p.stdout_slurp()
-		_ = p.stderr_slurp()
+		$if clipboard_stage_probe ? {
+			eprintln('KW stage: post-run ${time.sys_mono_now()}')
+		}
+		if copy_args[0].contains('wl-copy') {
+			return true
+		}
 		p.wait()
+		$if clipboard_stage_probe ? {
+			eprintln('KW stage: post-wait ${time.sys_mono_now()}')
+		}
+		code := p.code
 		p.close()
-		return p.code == 0
+		$if clipboard_stage_probe ? {
+			eprintln('KW stage: post-close ${time.sys_mono_now()}')
+		}
+		return code == 0
+	}
+
+	fn native_set_clipboard_text(text string) bool {
+		tool := linux_clipboard_tool() or { return false }
+		return native_clipboard_write(tool.copy, text)
 	}
 
 	fn native_clipboard_text() ?string {
@@ -99,21 +125,7 @@ $if linux || freebsd || openbsd || netbsd || dragonfly || solaris {
 		} else {
 			return false
 		}
-		path := os.join_path(os.temp_dir(), 'ui2-clipboard-${os.getpid()}.txt')
-		os.write_file(path, text) or { return false }
-		defer {
-			os.rm(path) or {}
-		}
-		mut p := os.new_process(copy_args[0])
-		p.set_args(copy_args[1..])
-		p.set_redirect_stdio()
-		p.set_stdin_path(path)
-		p.run()
-		_ = p.stdout_slurp()
-		_ = p.stderr_slurp()
-		p.wait()
-		p.close()
-		return p.code == 0
+		return native_clipboard_write(copy_args, text)
 	}
 
 	fn native_primary_text() ?string {
