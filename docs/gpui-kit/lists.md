@@ -6,7 +6,8 @@ and the searchable list behind [select](https://github.com/longbridge/gpui-kit/b
 and [combobox](https://github.com/longbridge/gpui-kit/blob/main/website/component/combobox.md).
 The implementation is in `ui/component_lists_virtual.v` (virtual list),
 `ui/component_lists.v` (list) and `ui/component_lists_search.v` (matching and
-the searchable list). `examples/gpui_lists/main.v` shows a sectioned list with
+the searchable list). The reorder container, which GPUI Kit does not have, is in
+`ui/component_reorder.v`. `examples/gpui_lists/main.v` shows a sectioned list with
 multiple selection, loading and empty lists, a virtual list of 10,000 rows of
 different heights, and two searchable lists, one of them with no results.
 
@@ -257,7 +258,7 @@ with the value `selected` when selected; the empty state is a `status`.
 | Right-click outline (`secondary_selected`) | A native right-click `menu` per row instead |
 | `searchable(true)`, `perform_search` | `searchable_list` (below) |
 | `render_initial` | Omitted: pass the rows to show before a search as the items. |
-| Drag and drop reordering | Omitted: ui2 has drag events but no drop targets. |
+| Drag and drop reordering | Not part of the list, which stays a selection list. Reordering is the separate [reorder container](#reorder-container). |
 | `max_h`, `paddings`, `scrollbar_visible`, `scroll_bounce` | The frame; the list's own padding; the backend's scroller and its native bounce. |
 | Type-ahead | Not in GPUI Kit's List, so not added. |
 
@@ -360,6 +361,112 @@ not arrive, so on AppKit the clear button clears the query.
 | Empty state | Implemented, naming the query |
 | Match highlighting | Not in GPUI Kit; `ListMatch.ranges` reports the matched runes, but rows are not highlighted, since a ui2 label has one style. |
 | Footer action slot, custom trigger, `Select`/`Combobox` popups | Outside this group: put a `searchable_list` in a `popover` and a button below it. |
+
+## Reorder container
+
+`reorder_container` lays its items out along one axis and lets the user move
+them: drag an item to a new place, or select it and press Alt (Option on macOS)
+with the arrow keys along that axis. Queues, playlists and other ordered lists
+are the typical use. Items are ordinary elements the application builds, so any
+content can be an item, and each item's `key` keeps its native state as the item
+moves.
+
+```v
+// build:
+ui2.reorder_container(queue_config(m))!
+
+fn queue_config(m &Model) ui2.ReorderConfig {
+	return ui2.ReorderConfig{
+		id:      'queue'
+		frame:   ui2.rect(24, 84, 512, 300)
+		items:   m.jobs.map(job_card) // each card has a key unique among the cards
+		state:   m.queue
+		gap:     8
+		padding: 4
+		offset:  m.queue_offset
+	}
+}
+
+// on_event (presses, drags and releases on the items):
+if step := ui2.reorder_update(queue_config(m), event) {
+	m.queue = step.state
+	if step.moved {
+		m.jobs = ui2.reorder_move(m.jobs, step.from, step.to)
+	}
+	if step.clicked.len > 0 {
+		select_job(step.clicked)
+	}
+}
+
+// on_key_event (acts on the cursor item, `state.active`):
+if step := ui2.reorder_key(queue_config(m), event) {
+	ui2.consume_key()
+	m.queue = step.state
+	m.jobs = ui2.reorder_move(m.jobs, step.from, step.to)
+	// After the rebuild, when step.reveal is set, scroll the item into view.
+	if offset := ui2.reorder_reveal_offset(queue_config(m), step.state.active) {
+		ui2.scroll_to_offset(ui2.reorder_scroll_id('queue'), offset)
+	}
+}
+
+// on_scroll:
+if id == ui2.reorder_scroll_id('queue') {
+	m.queue_offset = ui2.scroll_offset(id)
+}
+```
+
+| `ReorderConfig` | Meaning |
+| --- | --- |
+| `axis` | `.vertical` (default) or `.horizontal`. |
+| `items` | The elements in order. An item's length is its frame's height (its width on a horizontal axis), and the container stretches it across. Hidden items are rejected: leave them out of the list instead. |
+| `state` | `ReorderState{active, drag}`: the keyboard cursor and the drag in progress. |
+| `gap`, `padding` | The space between items, and the space kept from each end. |
+| `offset` | The scroll position along the axis, which `reorder_reveal_offset` starts from. |
+| `handle` | Only a grip at the leading edge drags. See below. |
+| `size`, `theme`, `accessibility_label` | The grip's size and colors, and the container's accessible name. |
+
+**Dragging.** Past 4 points, a press becomes a drag. The item follows the
+pointer, floating above the others on a shadow, and the items it passes move
+aside into the place it left. Released, `reorder_update` reports `moved` with
+`from` and `to`, where `to` is the item's index after the move. Released where it
+was pressed, it reports `clicked`, and the item becomes the cursor. A drag does
+not scroll the list, so scroll an item closer before moving it far.
+
+**Keys.** Alt with the arrows along the axis moves the cursor's item one place,
+and Alt with Home or End moves it to the first or last place it may take. Each
+move reports `reveal`. Other keys are left alone.
+
+**Disabled items** (`enabled: false`) keep their places. They cannot be dragged
+or moved with the keys, and the others cannot be moved past them. That suits an
+item already printing at the head of a queue.
+
+**Presses inside an item.** By default the whole item is the press, but a button
+or other interactive child keeps its own presses, so a Remove button can sit in
+each row. An item that is itself a button or a clickable view needs
+`handle: true`: a grip, a column of dots at the leading edge, is then the only
+press that drags. The item is narrower by the grip, so lay its content out with
+that in mind.
+
+**Scrolling and accessibility.** Items longer than the frame scroll in
+`reorder_scroll_id(id)`, and the items keep clear of the scroller. The container
+is a `list` and each item a `listitem`.
+
+| Function | Purpose |
+| --- | --- |
+| `reorder_container(config) !Element` | The container. |
+| `reorder_update(config, event) ?ReorderStep` | Presses, drags and releases on the items. |
+| `reorder_key(config, event) ?ReorderStep` | The keys above. |
+| `reorder_move[T](items, from, to) []T` | Applies a `moved` step to the application's own array. |
+| `reorder_reveal_offset(config, key) ?f64` | The scroll offset that shows an item, scrolling as little as it can from `config.offset`; none when the items fit. |
+| `reorder_layout(config) !ReorderLayout` | Where the items go: `items`, `length` and `scrolls`. |
+| `reorder_item_action(id, key)`, `reorder_scroll_id(id)` | The action and element ids. |
+
+```sh
+v test ui/component_reorder_test.v
+v -d ui2_custom_rendering test ui/component_reorder_test.v
+v test examples/reorder_queue/
+v run examples/reorder_queue/main.v
+```
 
 ## Verification
 

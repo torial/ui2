@@ -1238,6 +1238,8 @@ Typed-VML ports from `v-ui` include:
   window-anchored rectangles.
 - `v run examples/dynamic_layout/main.v` — add, remove, reorder, hide, and
   rename controls through a keyed repeater.
+- `v run examples/reorder_queue/main.v` — a print queue in a scrolling list:
+  drag a job to move it, or select it and press Alt with Up or Down.
 - `v run examples/grid/main.v` — the original compact three-column data grid.
 - `v run examples/label_justify/main.v` — left, center, and right label
   alignment plus single-line clipping.
