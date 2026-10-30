@@ -80,4 +80,59 @@ $if linux || freebsd || openbsd || netbsd || dragonfly || solaris {
 		}
 		return result.output
 	}
+
+	// native_set_primary_text publishes X11-style primary selection text (the
+	// one the middle button pastes): select with the mouse, paste with the
+	// middle button. The same background tools drive it through their
+	// primary-service arguments, program first like the clipboard argv above.
+	fn native_set_primary_text(text string) bool {
+		mut copy_args := []string{}
+		if os.getenv('WAYLAND_DISPLAY').len > 0 && linux_has_executable('wl-copy')
+			&& linux_has_executable('wl-paste') {
+			copy_args = ['wl-copy', '--primary']
+		} else if os.getenv('DISPLAY').len == 0 {
+			return false
+		} else if linux_has_executable('xclip') {
+			copy_args = ['xclip', '-selection', 'primary', '-in']
+		} else if linux_has_executable('xsel') {
+			copy_args = ['xsel', '--primary', '--input']
+		} else {
+			return false
+		}
+		path := os.join_path(os.temp_dir(), 'ui2-clipboard-${os.getpid()}.txt')
+		os.write_file(path, text) or { return false }
+		defer {
+			os.rm(path) or {}
+		}
+		mut p := os.new_process(copy_args[0])
+		p.set_args(copy_args[1..])
+		p.set_redirect_stdio()
+		p.set_stdin_path(path)
+		p.run()
+		_ = p.stdout_slurp()
+		_ = p.stderr_slurp()
+		p.wait()
+		p.close()
+		return p.code == 0
+	}
+
+	fn native_primary_text() ?string {
+		mut paste_args := []string{}
+		if os.getenv('WAYLAND_DISPLAY').len > 0 && linux_has_executable('wl-paste') {
+			paste_args = ['wl-paste', '--no-newline', '--primary', '--type', 'text']
+		} else if os.getenv('DISPLAY').len == 0 {
+			return none
+		} else if linux_has_executable('xclip') {
+			paste_args = ['xclip', '-selection', 'primary', '-out']
+		} else if linux_has_executable('xsel') {
+			paste_args = ['xsel', '--primary', '--output']
+		} else {
+			return none
+		}
+		result := os.exec(paste_args)
+		if result.exit_code != 0 {
+			return none
+		}
+		return result.output
+	}
 }

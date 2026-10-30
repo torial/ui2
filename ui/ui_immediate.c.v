@@ -1314,7 +1314,58 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 		if menu_bar_handle_down(x, y) {
 			return
 		}
+		// The middle button is X11's paste-the-selection: an editable field
+		// under the pointer takes the press, focuses and inserts, and nothing
+		// else downstream sees a gesture it would read as a drag or a click.
+		if button == 1 && handle_middle_click(x, y) {
+			return
+		}
 		handle_touch_down(x, y)
+	}
+
+	// handle_middle_click pastes the primary selection into an editable field
+	// at its caret, the way every X11 field has pasted since before there was
+	// a clipboard. Presses off the fields return false so the plain press
+	// path runs.
+	fn handle_middle_click(x f64, y f64) bool {
+		target := hit_test(x, y)
+		if !(target.text_field || target.text_area) {
+			return false
+		}
+		g_focused_field = target.id
+		mut editor := g_text_editors[target.id] or {
+			text_editor((g_text_values[target.id] or { '' }).clone())
+		}
+		editor.set_caret(rune_len(editor.text))
+		replace_text_editor(target.id, editor)
+		mut pasted := primary_selection_text() or { return false }
+		if pasted.len == 0 {
+			return false
+		}
+		if (g_text_kinds[target.id] or { Kind.text_field }) != .text_area {
+			pasted = pasted.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
+		}
+		editor.replace_selection(pasted)
+		replace_text_value(target.id, editor.text)
+		replace_text_editor(target.id, editor)
+		fire_field_change(target.id)
+		return true
+	}
+
+	// publish_text_selection hands a drag's freshly selected text to the
+	// primary selection when the drag ends over the field it selected: the
+	// select-then-middle-paste loop needs the selection owner, and only a
+	// focused field has one the same process just edited.
+	fn publish_text_selection(x f64, y f64) {
+		target := hit_test(x, y)
+		if !(target.text_field || target.text_area) || target.id != g_focused_field {
+			return
+		}
+		editor := g_text_editors[target.id] or { return }
+		selected := editor_selected_text(editor)
+		if selected.len > 0 {
+			set_primary_selection(selected)
+		}
 	}
 
 	// pointer_move_to handles a move of the pointer or of the first finger.
@@ -1350,6 +1401,9 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 	fn pointer_release_at(x f64, y f64, button int) {
 		if voidptr(g_mouse_button_handler) != unsafe { nil } {
 			g_mouse_button_handler(button, false, x, y)
+		}
+		if button == 0 {
+			publish_text_selection(x, y)
 		}
 		if g_touch.down && g_touch.pointer_target.action_id.len > 0 {
 			handle_touch_up(x, y)
@@ -1483,6 +1537,15 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 					if handle_dropdown_key(e.key_code) {
 						return
 					}
+				}
+				// A focused field consumes its editing keys before anything
+				// else sees them: with mute on m, pause on space and seeks on
+				// the arrows, typing in an input would fire app shortcuts per
+				// keystroke. Escape and Tab stay unowned, so dismissal and
+				// focus travel keep behaving.
+				if g_focused_field.len > 0 && field_owns_key(e.key_code, e.modifiers) {
+					handle_key_down(e.key_code, e.modifiers)
+					return
 				}
 				if !dispatch_key_event(e) {
 					handle_key_down(e.key_code, e.modifiers)
@@ -1938,6 +2001,35 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 	}
 
 	// ── Keyboard input ─────────────────────────────────────────────────
+
+	// field_owns_key reports whether a focused text field should receive the
+	// key before the app listener and every other keyboard consumer sees it.
+	// With no modifiers beyond Shift every key is editing material — letters,
+	// space, the arrows and Enter are text or navigation, and the same keys
+	// drive shortcuts (mute on m, pause on space, seeks) that must stay quiet
+	// while a dialog input holds the keyboard. Control the field understands
+	// covers the clipboard chords and select-all plus caret navigation; Alt
+	// keeps passing because it drives reorder and menu chords, Ctrl+Alt is
+	// AltGr text on layouts that report it this way, and Escape and Tab stay
+	// unowned for focus and dismissal.
+	fn field_owns_key(key gg.KeyCode, modifiers u32) bool {
+		if key == .enter || key == .kp_enter {
+			return true
+		}
+		if key == .escape || key == .tab {
+			return false
+		}
+		ctrl := modifiers & u32(gg.Modifier.ctrl) != 0
+		alt := modifiers & u32(gg.Modifier.alt) != 0
+		super_on := modifiers & u32(gg.Modifier.super) != 0
+		if alt || super_on {
+			return false
+		}
+		if ctrl {
+			return key in [.a, .c, .v, .x, .backspace, .delete, .left, .right, .home, .end]
+		}
+		return true
+	}
 
 	fn dispatch_key_event(e &gg.Event) bool {
 		if voidptr(g_key_event_handler) != unsafe { nil } {

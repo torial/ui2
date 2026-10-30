@@ -19,3 +19,18 @@ pub fn set_clipboard_text(text string) bool {
 pub fn clipboard_text() ?string {
 	return native_clipboard_text()
 }
+
+// set_primary_selection publishes X11-style primary selection text: select
+// with the mouse, paste with the middle button, the copy path every mouse
+// user reaches for before they think of the clipboard. Linux and the BSDs
+// drive it through the same background tools as the clipboard; platforms
+// without such a convention report false.
+pub fn set_primary_selection(text string) bool {
+	return native_set_primary_text(text)
+}
+
+// primary_selection_text returns the primary selection's plain text, or none
+// where the selection does not exist or holds no text.
+pub fn primary_selection_text() ?string {
+	return native_primary_text()
+}

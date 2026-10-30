@@ -33,3 +33,12 @@ fn native_clipboard_text() ?string {
 	unsafe { C.free(wide) }
 	return value
 }
+
+// Windows has no X11-style primary selection; both halves answer unsupported.
+fn native_set_primary_text(_ string) bool {
+	return false
+}
+
+fn native_primary_text() ?string {
+	return none
+}

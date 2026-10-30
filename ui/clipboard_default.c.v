@@ -13,3 +13,13 @@ fn native_set_clipboard_text(_text string) bool {
 fn native_clipboard_text() ?string {
 	return none
 }
+
+// Primary selection has no counterpart on platforms without an X11-style
+// middle-button paste: both halves answer unsupported there.
+fn native_set_primary_text(_ string) bool {
+	return false
+}
+
+fn native_primary_text() ?string {
+	return none
+}
