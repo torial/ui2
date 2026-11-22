@@ -28,10 +28,16 @@
 #endif
 #if defined(__TINYC__) && !defined(UI2_TCC_HAS_COMMCTRL_HEADER)
 // A tcc whose winapi set has no commctrl.h (V's bundled tcc before vlang/tccbin's Win32 GUI
-// series), and whose winuser.h predates a metric used below: the names used are declared there.
+// series): the names used from it are declared there.
 #include "tcc_compat_windows.h"
 #else
 #include <commctrl.h>
+#endif
+// A winuser.h that predates this metric (tcc's) is a separate question from whether there
+// is a commctrl.h: a tcc with the one and without the other took the branch above that does
+// not read the compat header, and the name below was undeclared. The SDK's value.
+#ifndef SM_CXPADDEDBORDER
+#define SM_CXPADDEDBORDER 92
 #endif
 
 // The main window is this process's visible, unowned top-level window: ui2's own
