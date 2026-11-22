@@ -15,7 +15,15 @@
 #endif
 
 #include <windows.h>
-#if defined(__TINYC__) && !(defined(__has_include) && __has_include(<commdlg.h>) && __has_include(<shlobj.h>))
+// A compiler without __has_include must never see a call of it: an #if line is parsed
+// whole, also the side of an && that is not evaluated (V 0.5.2's tcc says "function
+// pointer expected"). So the question is asked on a line of its own.
+#ifdef __has_include
+#if __has_include(<commdlg.h>) && __has_include(<shlobj.h>)
+#define UI2_TCC_HAS_DIALOG_HEADERS 1
+#endif
+#endif
+#if defined(__TINYC__) && !defined(UI2_TCC_HAS_DIALOG_HEADERS)
 // A tcc whose winapi set has no commdlg.h or shlobj.h (V's bundled tcc before vlang/tccbin's
 // Win32 GUI series): the names used are declared there. A tcc that has them reads them below.
 #include "tcc_compat_windows.h"
